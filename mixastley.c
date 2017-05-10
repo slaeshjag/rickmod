@@ -33,10 +33,10 @@ freely, subject to the following restrictions:
 
 static void resample_refill(struct MAState *rs) {
 	int i;
-	uint8_t buff[1 << MA_SAMPLE_BUFFER_LEN];
+	int8_t buff[1 << MA_SAMPLE_BUFFER_LEN];
 	rs->get_next_sample(rs->ptr, buff);
 	for (i = 0; i < (1 << MA_SAMPLE_BUFFER_LEN); i++)
-		rs->buffer[i] = (((signed) buff[i]) - 127) * 0x800000;
+		rs->buffer[i] = buff[i] * 0x800000;
 }
 
 
@@ -62,21 +62,27 @@ static void resample_filter(struct MAState *rs, int16_t *sample, int samples) {
 }
 
 
-static void resample_add(struct MAState *rs, int32_t *sample, int samples) {
+void ma_add(struct MAState *rs, int32_t *sample, int samples) {
 	int i;
-	int32_t tmp;
+	int32_t tmp, fraction_per_sample;
 
 	if (!rs->get_next_sample)
 		return;
+	if (!rs->fraction_per_sample) {
+		rs->cur_sample = rs->last_sample = 0;
+		//fprintf(stderr, "No sample rate set\n");
+		return;
+	}
+
+	fraction_per_sample = rs->fraction_per_sample;
 
 	for (i = 0; i < samples; i++) {
 		tmp = rs->cur_sample - rs->last_sample; // 31 bit
 		tmp >>= 20;
 		tmp *= rs->sample_pos;
 		tmp >>= 12;
-		printf("last sample: %i, target sample: %i, compensation: %i, sample pos: 0x%X\n", rs->last_sample, rs->cur_sample, tmp, rs->sample_pos);
-		sample[i] += (((((rs->last_sample >> 16) - 1) + tmp) << 1) * rs->volume) >> 6;
-		rs->sample_pos += rs->fraction_per_sample;
+		sample[i] += ((((((rs->last_sample >> 16) - 1) + tmp) << 1) * rs->volume) >> 6);
+		rs->sample_pos += fraction_per_sample;
 		if (rs->sample_pos >= 0x10000) {
 			rs->next_sample += rs->sample_pos >> 16;
 			rs->sample_pos &= 0xFFFF;
@@ -92,7 +98,7 @@ static void resample_add(struct MAState *rs, int32_t *sample, int samples) {
 }
 
 
-static struct MAState resample_init(int target_sample_rate) {
+struct MAState ma_init(int target_sample_rate) {
 	struct MAState rs;
 
 	rs.target_rate = target_sample_rate;
@@ -113,7 +119,7 @@ void ma_set_samplerate(struct MAState *rs, int samplerate) {
 	samplerate *= 0x10000;
 	rs->fraction_per_sample = samplerate/rs->target_rate;
 	rs->filter.f1 = ((((int64_t) bw) * 0x3ED4F4C0 / rs->target_rate / 2) >> 16);
-	fprintf(stderr, "fraction per sample: 0x%X, filter at %i\n", rs->fraction_per_sample, bw);
+	//fprintf(stderr, "fraction per sample: 0x%X, filter at %i\n", rs->fraction_per_sample, bw);
 	return;
 }
 
@@ -128,7 +134,7 @@ void ma_set_volume(struct MAState *rs, int volume) {
 }
 
 
-void ma_set_callback(struct MAState *rs, void (*next_sample)(void *ptr, uint8_t *buff), void *ptr) {
+void ma_set_callback(struct MAState *rs, void (*next_sample)(void *ptr, int8_t *buff), void *ptr) {
 	rs->get_next_sample = next_sample;
 	rs->ptr = ptr;
 }
@@ -140,15 +146,15 @@ void ma_mix8(struct MAMix *mix, uint8_t *buff, int samples) {
 
 	memset(buffer, 0, sizeof(buffer));
 	for (i = 0; i < MA_CHANNELS; i++)
-		resample_add(&mix->left[i], buffer, samples);
+		ma_add(&mix->left[i], buffer, samples);
 	for (i = 0; i < samples; i++)
-		buff[i << 1] = 128 + buffer[i] >> (8 + MA_CHANNELS_POT);
+		buff[i << 1] = 128 + (buffer[i] >> (8 + MA_CHANNELS_POT));
 	
 	memset(buffer, 0, sizeof(buffer));
 	for (i = 0; i < MA_CHANNELS; i++)
-		resample_add(&mix->right[i], buffer, samples);
+		ma_add(&mix->right[i], buffer, samples);
 	for (i = 0; i < samples; i++)
-		buff[(i << 1) + 1] = 128 + buffer[i] >> (8 + MA_CHANNELS_POT);
+		buff[(i << 1) + 1] = 128 + (buffer[i] >> (8 + MA_CHANNELS_POT));
 	return;
 }
 
@@ -158,14 +164,15 @@ struct MAMix ma_mix_create(int sample_rate) {
 	int i;
 
 	for (i = 0; i < MA_CHANNELS; i++) {
-		mix.left[i] = resample_init(sample_rate);
-		mix.right[i] = resample_init(sample_rate);
+		mix.left[i] = ma_init(sample_rate);
+		mix.right[i] = ma_init(sample_rate);
 	}
 
 	return mix;
 }
 
 
+#if 0
 int main(int argc, char **argv) {
 	struct MAState rs;
 	uint16_t buff[48000];
@@ -182,3 +189,4 @@ int main(int argc, char **argv) {
 	return 0;
 	
 }
+#endif
