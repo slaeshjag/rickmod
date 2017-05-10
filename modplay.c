@@ -8,6 +8,32 @@
 #include <string.h>
 
 
+static uint16_t valid_notes[48] = {
+	856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453,
+	428, 404, 381, 360, 339, 320, 302, 285, 269, 254, 240, 226,
+	214, 202, 190, 180, 170, 160, 151, 143, 135, 127, 120, 113,
+};
+
+
+static int _lookup_arpeggio(int base, int steps) {
+	int i;
+
+	for (i = 0; i < 48; i++)
+		if (valid_notes[i] == base) {
+			if (steps < 0) {
+				if (i + steps < 0)
+					return valid_notes[0];
+				return valid_notes[i + steps];
+			} else {
+				if (i + steps >= 48)
+					return valid_notes[47];
+				return valid_notes[i + steps];
+			}
+		}
+	return base;
+}
+
+
 static void _flush_channel_samples(struct RickmodState *rm, int channel) {
 	rm->mix[channel].next_sample = (1 << MA_SAMPLE_BUFFER_LEN);
 }
@@ -26,6 +52,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 
 
 	if (!rce.effect) {
+	} else if ((rce.effect & 0xF00) == 0x000) {
 	} else if ((rce.effect & 0xF00) == 0x100) {
 	} else if ((rce.effect & 0xF00) == 0x200) {
 	} else if ((rce.effect & 0xF00) == 0x300) {
@@ -72,6 +99,22 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 	struct RickmodChannelEffect rce;
 	rce = rm->channel[channel].rce;
 	if (!rce.effect) {
+		return;
+	} else if ((rce.effect & 0xF00) == 0x000) {
+		int mode = rm->cur.tick % 3;
+		int arpeggio = rce.effect & 0xFF;
+		int step;
+		if (!mode)
+			return ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.note - 113]);
+		if (arpeggio) {
+			rm->channel[channel].rce.arpeggio_save = arpeggio;
+		} else
+			arpeggio = rm->channel[channel].rce.arpeggio_save;
+		if (mode == 1)
+			step = _lookup_arpeggio(rce.note, arpeggio & 0xF);
+		if (mode == 2)
+			step = _lookup_arpeggio(rce.note, (arpeggio & 0xF0) >> 4);
+		ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[step - 113]);
 		return;
 	} else if ((rce.effect & 0xF00) == 0x100) {
 		if (rce.note > (rce.effect & 0xFF) + 113)

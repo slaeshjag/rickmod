@@ -16,6 +16,7 @@ struct RickmodChannelEffect {
 
 	uint16_t		portamento_target;
 	uint8_t			portamento_speed;
+	uint8_t			arpeggio_save;
 };
 
 
