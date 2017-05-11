@@ -55,6 +55,27 @@ static void _set_bpm(struct RickmodState *rm) {
 }
 
 
+static void _calculate_portamento(struct RickmodChannelEffect *rce) {
+	if (!rce->portamento_target)
+		return;
+	if (rce->note < rce->portamento_target) {
+		if (rce->portamento_target - rce->note >= rce->portamento_speed)
+			rce->note += rce->portamento_speed;
+		else
+			rce->note = rce->portamento_target;
+		fprintf(stderr, "portamento down\n");
+	} else if (rce->note > rce->portamento_target) {
+		if (rce->note - rce->portamento_target >= rce->portamento_speed)
+			rce->note -= rce->portamento_speed;
+		else
+			rce->note = rce->portamento_target;
+		fprintf(stderr, "portamento up\n");
+	} else
+		return;
+
+}
+
+
 static void _calculate_vibrato(struct RickmodChannelEffect *rce) {
 	int16_t vibrato_level;
 	rce->vibrato_pos += (rce->vibrato_speed >> 4);
@@ -73,6 +94,20 @@ static void _calculate_vibrato(struct RickmodChannelEffect *rce) {
 		rce->last_vibrato = 113;
 	if (rce->last_vibrato > 856)
 		rce->last_vibrato = 856;
+}
+
+
+static void _calculate_volume_slide(struct RickmodChannelEffect *rce) {
+	if (rce->effect & 0xF0) {
+		rce->volume += (rce->effect & 0xF0) >> 4;
+		if (rce->volume > 64)
+			rce->volume = 64;
+	} else if (rce->effect & 0xF) {
+		if (((rce->effect & 0xF)) > rce->volume)
+			rce->volume = 0;
+		else
+			rce->volume -= ((rce->effect & 0xF));
+	}
 }
 
 
@@ -97,6 +132,15 @@ static void _do_row(struct RickmodState *rm, int channel) {
 			rce.vibrato_pos = 0;
 		if (rce.effect & 0xFF)
 			rce.vibrato_speed = rce.effect & 0xFF;
+	} else if ((rce.effect & 0xF00) == 0x500) {
+		rce.reset_note = 0;
+		if (rce.row_note)
+			rce.portamento_target = rce.row_note;
+	} else if ((rce.effect & 0xF00) == 0x600) {
+		if (rce.vibrato_wave & 4)
+			ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.last_vibrato - 113]);
+		else
+			rce.vibrato_pos = 0;
 	} else if ((rce.effect & 0xF00) == 0x900) {
 		rm->channel[channel].sample_pos = (rce.effect & 0xFF) << 8;
 	} else if ((rce.effect & 0xF00) == 0xA00) {
@@ -187,7 +231,8 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 		else
 			rce.note += (rce.effect & 0xFF);
 	} else if ((rce.effect & 0xF00) == 0x300) {
-		if (!rce.portamento_target)
+		_calculate_portamento(&rce);
+		/*if (!rce.portamento_target)
 			return;
 		if (rce.note < rce.portamento_target) {
 			if (rce.portamento_target - rce.note >= rce.portamento_speed)
@@ -202,32 +247,19 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 				rce.note = rce.portamento_target;
 			fprintf(stderr, "portamento up\n");
 		} else
-			return;
+			return;*/
 	} else if ((rce.effect & 0xF00) == 0x400) {
-		/*int16_t vibrato_level;
-		rce.vibrato_pos += (rce.vibrato_speed >> 4);
-		if ((rce.vibrato_wave & 0x3) == 0) {
-			vibrato_level = ((int16_t) sinetable[rce.vibrato_pos & 0x1F])*((rce.vibrato_pos&0x20)?-1:1);
-		} else if ((rce.vibrato_wave & 0x3) == 1) {
-			vibrato_level = (rce.vibrato_pos & 0x1F) << 3;
-		} else if ((rce.vibrato_wave & 0x3) == 2) {
-			vibrato_level = (rce.vibrato_pos&0x1F)>15?255:0;
-		} else {
-			vibrato_level = rand() & 0x7F;
-		}
-
-		note = (vibrato_level*(rce.vibrato_speed & 0xF) >> 7) + rce.note;
-
-		if (note < 113)
-			note = 113;
-		if (note > 856)
-			note = 856;
-		rce.last_vibrato = note;*/
 		_calculate_vibrato(&rce);
 		note = rce.last_vibrato;
 		goto special_note;
-	} else if ((rce.effect & 0xF00) == 0xA00) {
-		if (rce.effect & 0xF0) {
+	} else if ((rce.effect & 0xF00) == 0x500) {
+		_calculate_portamento(&rce);
+		_calculate_volume_slide(&rce);
+	} else if ((rce.effect & 0xF00) == 0x600) {
+		_calculate_vibrato(&rce);
+		note = rce.last_vibrato;
+		_calculate_volume_slide(&rce);
+		/*if (rce.effect & 0xF0) {
 			rce.volume += (rce.effect & 0xF0) >> 4;
 			if (rce.volume > 64)
 				rce.volume = 64;
@@ -236,7 +268,20 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 				rce.volume = 0;
 			else
 				rce.volume -= ((rce.effect & 0xF));
-		}
+		}*/
+		goto special_note;
+	} else if ((rce.effect & 0xF00) == 0xA00) {
+		/*if (rce.effect & 0xF0) {
+			rce.volume += (rce.effect & 0xF0) >> 4;
+			if (rce.volume > 64)
+				rce.volume = 64;
+		} else if (rce.effect & 0xF) {
+			if (((rce.effect & 0xF)) > rce.volume)
+				rce.volume = 0;
+			else
+				rce.volume -= ((rce.effect & 0xF));
+		}*/
+		_calculate_volume_slide(&rce);
 	}
 	note = rce.note;
 special_note:
