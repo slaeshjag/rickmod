@@ -56,20 +56,20 @@ static void _set_bpm(struct RickmodState *rm) {
 
 
 static void _calculate_portamento(struct RickmodChannelEffect *rce) {
-	if (!rce->portamento_target)
+	if (!rce->portamento_target) {
+		fprintf(stderr, "No portamento target!\n");
 		return;
+	}
 	if (rce->note < rce->portamento_target) {
 		if (rce->portamento_target - rce->note >= rce->portamento_speed)
 			rce->note += rce->portamento_speed;
 		else
 			rce->note = rce->portamento_target;
-		fprintf(stderr, "portamento down\n");
 	} else if (rce->note > rce->portamento_target) {
 		if (rce->note - rce->portamento_target >= rce->portamento_speed)
 			rce->note -= rce->portamento_speed;
 		else
 			rce->note = rce->portamento_target;
-		fprintf(stderr, "portamento up\n");
 	} else
 		return;
 
@@ -97,16 +97,23 @@ static void _calculate_vibrato(struct RickmodChannelEffect *rce) {
 }
 
 
-static void _calculate_volume_slide(struct RickmodChannelEffect *rce) {
-	if (rce->effect & 0xF0) {
-		rce->volume += (rce->effect & 0xF0) >> 4;
+static void _calculate_volume_slide(struct RickmodChannelEffect *rce, uint8_t fallback) {
+	uint8_t effect;
+
+	effect = rce->effect & 0xFF;
+	if (!effect && !fallback)
+		return;
+	if (!effect)
+		effect = rce->volume_slide;
+	if (effect & 0xF0) {
+		rce->volume += (effect & 0xF0) >> 4;
 		if (rce->volume > 64)
 			rce->volume = 64;
-	} else if (rce->effect & 0xF) {
-		if (((rce->effect & 0xF)) > rce->volume)
+	} else if (effect & 0xF) {
+		if (((effect & 0xF)) > rce->volume)
 			rce->volume = 0;
 		else
-			rce->volume -= ((rce->effect & 0xF));
+			rce->volume -= ((effect & 0xF));
 	}
 }
 
@@ -144,18 +151,24 @@ static void _do_row(struct RickmodState *rm, int channel) {
 	} else if ((rce.effect & 0xF00) == 0x900) {
 		rm->channel[channel].sample_pos = (rce.effect & 0xFF) << 8;
 	} else if ((rce.effect & 0xF00) == 0xA00) {
-	} else if ((rce.effect & 0xF00) == 0xF00) {
-		if ((rce.effect & 0xFF) < 0x20) {
-			rm->cur.speed = rce.effect & 0xFF;
-		} else {
-			rm->cur.bpm = rce.effect & 0xFF, _set_bpm(rm);
-		}
+		if (rce.effect & 0xFF)
+			rce.volume_slide = rce.effect & 0xFF;
+	} else if ((rce.effect & 0xF00) == 0xB00) {
+		rm->cur.next_pattern = rce.effect & 0xFF;
+		if (rm->cur.next_pattern >= rm->song_length)
+			rm->cur.next_pattern = 0;
+		rm->cur.next_row = 0;
 	} else if ((rce.effect & 0xF00) == 0xC00) {
 		rce.volume = rce.effect & 0xFF;
 	} else if ((rce.effect & 0xF00) == 0xD00) {
-		rm->cur.next_pattern = rm->cur.pattern + 1, rm->cur.next_row = 0;
+		int hex;
+		rm->cur.next_pattern = rm->cur.pattern + 1;
+		hex = rce.effect & 0x7F;
+		hex = (hex & 0xF) + ((hex & 0xF0) >> 4) * 10;
+		rm->cur.next_row = hex;
 		if (rm->cur.next_pattern >= rm->song_length)
 			rm->cur.next_pattern = 0;
+		//fprintf(stderr, "Jumping to %i:%i\n", rm->cur.next_pattern, rm->cur.next_row);
 	} else if ((rce.effect & 0xFF0) == 0xE10) {
 		rce.note -= rce.effect & 0xF;
 		if (rce.note < 113)
@@ -166,6 +179,18 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		if (rce.note > 856)
 			rce.note = 856;
 		ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.note - 113]);
+	} else if ((rce.effect & 0xFF0) == 0xE60) {
+		if (rce.effect & 0xF) {
+			if (!rce.loop_count)
+				rce.loop_count = rce.effect & 0xF;
+			rce.loop_count--;
+			if (rce.loop_count) {
+				rm->cur.next_row = rce.loop_row;
+				rm->cur.next_pattern = rm->cur.pattern;
+			}
+		} else {
+			rce.loop_row = rm->cur.row;
+		}
 	} else if ((rce.effect & 0xFF0) == 0xEA0) {
 		rce.volume += rce.effect & 0xF;
 		if (rce.volume > 64)
@@ -177,6 +202,12 @@ static void _do_row(struct RickmodState *rm, int channel) {
 			rce.volume -= (rce.effect & 0xF);
 	} else if ((rce.effect & 0xFF0) == 0xEE0) {
 		rm->cur.set_on_tick = (rce.effect & 0xF) * rm->cur.speed;
+	} else if ((rce.effect & 0xF00) == 0xF00) {
+		if ((rce.effect & 0xFF) < 0x20) {
+			rm->cur.speed = rce.effect & 0xFF;
+		} else {
+			rm->cur.bpm = rce.effect & 0xFF, _set_bpm(rm);
+		}
 	} else {
 		fprintf(stderr, "Unhandled effect 0x%.3X\n", rce.effect);
 	}
@@ -232,60 +263,25 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 			rce.note += (rce.effect & 0xFF);
 	} else if ((rce.effect & 0xF00) == 0x300) {
 		_calculate_portamento(&rce);
-		/*if (!rce.portamento_target)
-			return;
-		if (rce.note < rce.portamento_target) {
-			if (rce.portamento_target - rce.note >= rce.portamento_speed)
-				rce.note += rce.portamento_speed;
-			else
-				rce.note = rce.portamento_target;
-			fprintf(stderr, "portamento down\n");
-		} else if (rce.note > rce.portamento_target) {
-			if (rce.note - rce.portamento_target >= rce.portamento_speed)
-				rce.note -= rce.portamento_speed;
-			else
-				rce.note = rce.portamento_target;
-			fprintf(stderr, "portamento up\n");
-		} else
-			return;*/
 	} else if ((rce.effect & 0xF00) == 0x400) {
 		_calculate_vibrato(&rce);
 		note = rce.last_vibrato;
 		goto special_note;
 	} else if ((rce.effect & 0xF00) == 0x500) {
 		_calculate_portamento(&rce);
-		_calculate_volume_slide(&rce);
+		_calculate_volume_slide(&rce, 0);
 	} else if ((rce.effect & 0xF00) == 0x600) {
 		_calculate_vibrato(&rce);
 		note = rce.last_vibrato;
-		_calculate_volume_slide(&rce);
-		/*if (rce.effect & 0xF0) {
-			rce.volume += (rce.effect & 0xF0) >> 4;
-			if (rce.volume > 64)
-				rce.volume = 64;
-		} else if (rce.effect & 0xF) {
-			if (((rce.effect & 0xF)) > rce.volume)
-				rce.volume = 0;
-			else
-				rce.volume -= ((rce.effect & 0xF));
-		}*/
+		_calculate_volume_slide(&rce, 0);
 		goto special_note;
 	} else if ((rce.effect & 0xF00) == 0xA00) {
-		/*if (rce.effect & 0xF0) {
-			rce.volume += (rce.effect & 0xF0) >> 4;
-			if (rce.volume > 64)
-				rce.volume = 64;
-		} else if (rce.effect & 0xF) {
-			if (((rce.effect & 0xF)) > rce.volume)
-				rce.volume = 0;
-			else
-				rce.volume -= ((rce.effect & 0xF));
-		}*/
-		_calculate_volume_slide(&rce);
+		_calculate_volume_slide(&rce, 1);
 	}
 	note = rce.note;
 special_note:
-	ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[note - 113]);
+	if (note)
+		ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[note - 113]);
 	ma_set_volume(&rm->mix[channel], rce.volume);
 	rm->channel[channel].rce = rce;
 	
@@ -320,8 +316,9 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 	
 	if (!note) {
 		rce.reset_note = 0;
-		note = 0;
+		note = rce.note;
 		rce.row_note = 0;
+		//rce.row_note = 0;
 		/*ma_set_samplerate(&rm->mix[channel], 0);
 		rm->channel[channel].play_sample = 0;
 		_flush_channel_samples(rm, channel);
@@ -332,23 +329,31 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 		if (note > 856)
 			note = 856;
 		//fprintf(stderr, "setting note %i on channel %i\n", note, channel);
-		rce.reset_note = 1;
-		rce.note = note;
 		rce.row_note = note;
+		if ((effect & 0xF00) != 0x300) {
+			rce.reset_note = 1;
+			rce.note = note;
+		} else {
+			rce.reset_note = 0;
+			note = rce.note;
+		}
 	}
 
 	sample = rm->pattern[rm->pattern_lookup[rm->cur.pattern]].row[rm->cur.row].channel[channel].sample;
 	if (!sample) {
 		sample = rm->channel[channel].sample;
+		if (rce.reset_note) {
+			rce.volume = rm->sample[sample - 1].volume;
+		}
 		finetune = rce.finetune;
 	} else {
-		rce.volume = rm->sample[sample - 1].volume;
+		/* XXX: Not responsible for volume portamento glitch */
 		rce.reset_note = 1;
 		rce.volume = rm->sample[sample - 1].volume;
 		finetune = rm->sample[sample - 1].finetune;
 	} 
 	
-	if (!sample) {
+	if (!sample && rce.reset_note) {
 		rce.sample = 0, rce.volume = 0;
 		rce.finetune = 0;
 	} else {
@@ -586,6 +591,19 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	
 	return rm;
 }
+
+#if 0
+static void _print_pattern(struct RickmodState *rm, int pattern) {
+	pattern = rm->pattern_lookup[pattern];
+
+	int i, j;
+	for (i = 0; i < 64; i++) {
+		for (j = 0; j < 4; j++)
+			fprintf(stderr, "%.2i: [%.4X] %.2X %.3X   ", i, rm->pattern[pattern].row[i].channel[j].note, rm->pattern[pattern].row[i].channel[j].sample, rm->pattern[pattern].row[i].channel[j].effect);
+		fprintf(stderr, "\n");
+	}
+}
+#endif
 
 
 void tmp_mix(struct RickmodState *rm, int16_t *buff, int samples) {

@@ -22,6 +22,10 @@ struct RickmodChannelEffect {
 	uint8_t			vibrato_speed;
 	uint8_t			vibrato_wave;
 	uint16_t		last_vibrato;
+
+	uint8_t			loop_count;
+	uint8_t			loop_row;
+	uint8_t			volume_slide;
 };
 
 
