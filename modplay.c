@@ -15,6 +15,14 @@ static uint16_t valid_notes[48] = {
 };
 
 
+static uint8_t sinetable[32] = {
+	0, 24, 49, 74, 97, 120, 141, 161,
+	180, 197, 212, 224, 235, 244, 250, 253,
+	255, 253, 250, 244, 235, 224, 212, 197,
+	180, 161, 141, 120, 97, 74, 49, 24,
+};
+
+
 static int _lookup_arpeggio(int base, int steps) {
 	int i;
 
@@ -47,6 +55,27 @@ static void _set_bpm(struct RickmodState *rm) {
 }
 
 
+static void _calculate_vibrato(struct RickmodChannelEffect *rce) {
+	int16_t vibrato_level;
+	rce->vibrato_pos += (rce->vibrato_speed >> 4);
+	if ((rce->vibrato_wave & 0x3) == 0) {
+		vibrato_level = ((int16_t) sinetable[rce->vibrato_pos & 0x1F])*((rce->vibrato_pos&0x20)?-1:1);
+	} else if ((rce->vibrato_wave & 0x3) == 1) {
+		vibrato_level = (rce->vibrato_pos & 0x1F) << 3;
+	} else if ((rce->vibrato_wave & 0x3) == 2) {
+		vibrato_level = (rce->vibrato_pos&0x1F)>15?255:0;
+	} else {
+		vibrato_level = rand() & 0x7F;
+	}
+
+	rce->last_vibrato = (vibrato_level*(rce->vibrato_speed & 0xF) >> 7) + rce->note;
+	if (rce->last_vibrato < 113)
+		rce->last_vibrato = 113;
+	if (rce->last_vibrato > 856)
+		rce->last_vibrato = 856;
+}
+
+
 static void _do_row(struct RickmodState *rm, int channel) {
 	struct RickmodChannelEffect rce = rm->channel[channel].rce;
 
@@ -61,6 +90,13 @@ static void _do_row(struct RickmodState *rm, int channel) {
 			rce.portamento_target = rce.row_note;
 		if (rce.effect & 0xFF)
 			rce.portamento_speed = rce.effect;
+	} else if ((rce.effect & 0xF00) == 0x400) {
+		if (rce.vibrato_wave & 4)
+			ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.last_vibrato - 113]);
+		else
+			rce.vibrato_pos = 0;
+		if (rce.effect & 0xFF)
+			rce.vibrato_speed = rce.effect & 0xFF;
 	} else if ((rce.effect & 0xF00) == 0x900) {
 		rm->channel[channel].sample_pos = (rce.effect & 0xFF) << 8;
 	} else if ((rce.effect & 0xF00) == 0xA00) {
@@ -100,6 +136,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 	} else {
 		fprintf(stderr, "Unhandled effect 0x%.3X\n", rce.effect);
 	}
+
 	ma_set_volume(&rm->mix[channel], rce.volume);
 	
 	if (rce.reset_note) {
@@ -118,6 +155,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 
 static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 	struct RickmodChannelEffect rce;
+	uint16_t note;
 	rce = rm->channel[channel].rce;
 
 	if (!rce.effect) {
@@ -165,6 +203,29 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 			fprintf(stderr, "portamento up\n");
 		} else
 			return;
+	} else if ((rce.effect & 0xF00) == 0x400) {
+		/*int16_t vibrato_level;
+		rce.vibrato_pos += (rce.vibrato_speed >> 4);
+		if ((rce.vibrato_wave & 0x3) == 0) {
+			vibrato_level = ((int16_t) sinetable[rce.vibrato_pos & 0x1F])*((rce.vibrato_pos&0x20)?-1:1);
+		} else if ((rce.vibrato_wave & 0x3) == 1) {
+			vibrato_level = (rce.vibrato_pos & 0x1F) << 3;
+		} else if ((rce.vibrato_wave & 0x3) == 2) {
+			vibrato_level = (rce.vibrato_pos&0x1F)>15?255:0;
+		} else {
+			vibrato_level = rand() & 0x7F;
+		}
+
+		note = (vibrato_level*(rce.vibrato_speed & 0xF) >> 7) + rce.note;
+
+		if (note < 113)
+			note = 113;
+		if (note > 856)
+			note = 856;
+		rce.last_vibrato = note;*/
+		_calculate_vibrato(&rce);
+		note = rce.last_vibrato;
+		goto special_note;
 	} else if ((rce.effect & 0xF00) == 0xA00) {
 		if (rce.effect & 0xF0) {
 			rce.volume += (rce.effect & 0xF0) >> 4;
@@ -177,8 +238,9 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 				rce.volume -= ((rce.effect & 0xF));
 		}
 	}
-
-	ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.note - 113]);
+	note = rce.note;
+special_note:
+	ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[note - 113]);
 	ma_set_volume(&rm->mix[channel], rce.volume);
 	rm->channel[channel].rce = rce;
 	
@@ -278,7 +340,7 @@ static void _handle_tick(struct RickmodState *rm) {
 		_set_row_channel(rm, 3);
 		_handle_delayed_row(rm);
 	} else {
-		_handle_delayed_row(rm);
+		//_handle_delayed_row(rm);
 		_handle_tick_effects(rm);
 	}
 }
@@ -522,7 +584,7 @@ int main(int argc, char **argv) {
 	_pull_samples(&rm->channel[0], (void *) buff + 1792);
 	_pull_samples(&rm->channel[0], (void *) buff + 2048);*/
 	fp = fopen("/tmp/out.raw", "w");
-	for (i = 0; i < 50; i++) {
+	for (i = 0; i < 200; i++) {
 		tmp_mix(rm, buff, 44100);
 		fwrite(buff, 44100, 4, fp);
 	}
