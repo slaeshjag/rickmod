@@ -98,6 +98,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 	struct RickmodChannelEffect rce;
 	rce = rm->channel[channel].rce;
+
 	if (!rce.effect) {
 		return;
 	} else if ((rce.effect & 0xF00) == 0x000) {
@@ -144,19 +145,20 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 		} else
 			return;
 	} else if ((rce.effect & 0xF00) == 0xA00) {
-		if (rce.effect & 0xF) {
-			rce.volume += rce.effect & 0xF;
+		if (rce.effect & 0xF0) {
+			rce.volume += (rce.effect & 0xF0) >> 4;
 			if (rce.volume > 64)
 				rce.volume = 64;
-		} else if (rce.effect & 0xF0) {
-			if (((rce.effect & 0xF0) >> 4) > rce.volume)
+		} else if (rce.effect & 0xF) {
+			if (((rce.effect & 0xF)) > rce.volume)
 				rce.volume = 0;
 			else
-				rce.volume -= ((rce.effect & 0xF0) >> 4);
+				rce.volume -= ((rce.effect & 0xF));
 		}
 	}
 
 	ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.note - 113]);
+	ma_set_volume(&rm->mix[channel], rce.volume);
 	rm->channel[channel].rce = rce;
 	
 }
@@ -433,6 +435,7 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	
 	for (i = 0; i < 4; i++) {
 		rm->channel[i].rm = rm, rm->channel[i].channel = i, rm->channel[i].sample = rm->channel[i].trigger = rm->channel[i].play_sample = 0;
+		memset(&rm->channel[i].rce, 0, sizeof(rm->channel[i].rce));
 		rm->channel[i].sample_pos = 0;
 		rm->mix[i] = ma_init(sample_rate);
 		ma_set_callback(&rm->mix[i], _pull_samples, &rm->channel[i]);
