@@ -13,6 +13,7 @@ struct RickmodChannelEffect {
 	uint8_t			sample;
 	uint16_t		effect;
 	uint8_t			volume;
+	uint8_t			finetune;
 
 	uint16_t		portamento_target;
 	uint8_t			portamento_speed;

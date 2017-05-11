@@ -209,9 +209,10 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 	}
 
 	sample = rm->pattern[rm->pattern_lookup[rm->cur.pattern]].row[rm->cur.row].channel[channel].sample;
-	if (!sample)
+	if (!sample) {
 		sample = rm->channel[channel].sample;
-	else {
+		finetune = rce.finetune;
+	} else {
 		rce.volume = rm->sample[sample - 1].volume;
 		rce.reset_note = 1;
 		rce.volume = rm->sample[sample - 1].volume;
@@ -220,14 +221,17 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 	
 	if (!sample) {
 		rce.sample = 0, rce.volume = 0;
-		finetune = 0;
+		rce.finetune = 0;
 	} else {
 		rce.sample = sample;
+		rce.finetune = finetune;
 	}
+	#if 0
 	if (finetune) {
 		note *= rickmod_lut_finetune[finetune - 1];
 		note >>= 16;
 	}
+	#endif
 
 	rm->channel[channel].set_on_tick = 0;
 	rm->channel[channel].rce = rce;
@@ -422,7 +426,8 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	rm->cur.samples_this_tick = 0;
 	rm->cur.tick = 0;
 	rm->cur.next_row = 0;
-	rm->cur.next_pattern = 0;;
+	rm->cur.next_pattern = 0;
+	rm->cur.row = rm->cur.pattern = 0;
 	_set_bpm(rm);
 	// TODO: Set pattern
 	
