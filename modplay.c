@@ -76,6 +76,27 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		rm->cur.next_pattern = rm->cur.pattern + 1, rm->cur.next_row = 0;
 		if (rm->cur.next_pattern >= rm->song_length)
 			rm->cur.next_pattern = 0;
+	} else if ((rce.effect & 0xFF0) == 0xE10) {
+		rce.note -= rce.effect & 0xF;
+		if (rce.note < 113)
+			rce.note = 113;
+		ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.note - 113]);
+	} else if ((rce.effect & 0xFF0) == 0xE20) {
+		rce.note += rce.effect & 0xF;
+		if (rce.note > 856)
+			rce.note = 856;
+		ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.note - 113]);
+	} else if ((rce.effect & 0xFF0) == 0xEA0) {
+		rce.volume += rce.effect & 0xF;
+		if (rce.volume > 64)
+			rce.volume = 64;
+	} else if ((rce.effect & 0xFF0) == 0xEB0) {
+		if (rce.volume < (rce.effect & 0xF))
+			rce.volume = 0;
+		else
+			rce.volume -= (rce.effect & 0xF);
+	} else if ((rce.effect & 0xFF0) == 0xEE0) {
+		rm->cur.set_on_tick = (rce.effect & 0xF) * rm->cur.speed;
 	} else {
 		fprintf(stderr, "Unhandled effect 0x%.3X\n", rce.effect);
 	}
@@ -174,8 +195,7 @@ static void _handle_tick_effects(struct RickmodState *rm) {
 static void _handle_delayed_row(struct RickmodState *rm) {
 	int i;
 	for (i = 0; i < 4; i++)
-		if (rm->cur.tick == rm->channel[i].set_on_tick)
-			_do_row(rm, i);
+		_do_row(rm, i);
 }
 
 
@@ -235,7 +255,6 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 	}
 	#endif
 
-	rm->channel[channel].set_on_tick = 0;
 	rm->channel[channel].rce = rce;
 	rce.note = note;
 
@@ -244,9 +263,10 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 
 
 static void _handle_tick(struct RickmodState *rm) {
-	if (rm->cur.tick == rm->cur.speed) {
+	if (rm->cur.tick == rm->cur.speed + rm->cur.set_on_tick) {
 		rm->cur.row = rm->cur.next_row, rm->cur.pattern = rm->cur.next_pattern;
 		rm->cur.tick = 0;
+		rm->cur.set_on_tick = 0;
 		rm->cur.next_row++;
 		if (rm->cur.next_row == 64)
 			rm->cur.next_row = 0, rm->cur.next_pattern = rm->cur.pattern + 1;
@@ -427,6 +447,7 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	rm->cur.speed = 6;
 	rm->cur.samples_this_tick = 0;
 	rm->cur.tick = 0;
+	rm->cur.set_on_tick = 0;
 	rm->cur.next_row = 0;
 	rm->cur.next_pattern = 0;
 	rm->cur.row = rm->cur.pattern = 0;

@@ -55,7 +55,6 @@ struct RickmodChannelState {
 	uint8_t			sample;
 	uint8_t			play_sample;
 	uint8_t			trigger;
-	uint8_t			set_on_tick;
 	uint32_t		sample_pos;
 
 	struct RickmodChannelEffect rce;
@@ -87,6 +86,8 @@ struct RickmodState {
 		uint16_t	samples_per_tick; // bpm is tied to ticks per minute
 		uint16_t	samples_this_tick;
 		uint16_t	tick;
+
+		uint8_t		set_on_tick;
 
 		uint8_t		next_pattern;
 		uint8_t		next_row;
