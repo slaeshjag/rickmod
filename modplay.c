@@ -408,6 +408,7 @@ static void _handle_tick(struct RickmodState *rm) {
 	} else {
 		//_handle_delayed_row(rm);
 		_handle_tick_effects(rm);
+		_handle_retrig(rm);
 	}
 }
 
