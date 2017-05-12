@@ -206,6 +206,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 			rce.volume = 0;
 		else
 			rce.volume -= (rce.effect & 0xF);
+	} else if ((rce.effect & 0xFF0) == 0xEC0) {
 	} else if ((rce.effect & 0xFF0) == 0xEE0) {
 		rm->cur.set_on_tick = (rce.effect & 0xF) * rm->cur.speed;
 	} else if ((rce.effect & 0xF00) == 0xF00) {
@@ -283,6 +284,10 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 		goto special_note;
 	} else if ((rce.effect & 0xF00) == 0xA00) {
 		_calculate_volume_slide(&rce, 1);
+	} else if ((rce.effect & 0xFF0) == 0xEC0) {
+		if ((rce.effect & 0xF) == rm->cur.tick) {
+			rce.volume = 0;
+		}
 	}
 	note = rce.note;
 special_note:
