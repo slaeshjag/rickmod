@@ -197,7 +197,6 @@ static void _do_row(struct RickmodState *rm, int channel) {
 	} else if ((rce.effect & 0xFF0) == 0xE90) {
 		rce.retrig = rce.effect & 0xF;
 		rce.reset_note = 1;
-		fprintf(stderr, "retrig chnl %i %i\n", channel, rce.retrig);
 	} else if ((rce.effect & 0xFF0) == 0xEA0) {
 		rce.volume += rce.effect & 0xF;
 		if (rce.volume > 64)
@@ -488,13 +487,16 @@ loop:
 
 
 static void _parse_sample_info(struct RickmodState *rm, uint8_t *mod, uint16_t wavepos, int samples) {
-	int i;
+	int i, j;
 	uint8_t *sample_data;
 	uint32_t next_wave = wavepos;
 
 	for (i = 0; i < samples; i++) {
 		sample_data = mod + 20 + i*30;
 		memcpy(rm->sample[i].name, sample_data, 22);
+		for (j = 0; j < 22; j++)
+			if (rm->sample[i].name[j] == 0)
+				rm->sample[i].name[j] = ' ';
 		rm->sample[i].name[22] = 0;
 		rm->sample[i].length = (sample_data[22] << 9) | (sample_data[23] << 1);
 		rm->sample[i].finetune = sample_data[24] & 0xF;
@@ -502,7 +504,7 @@ static void _parse_sample_info(struct RickmodState *rm, uint8_t *mod, uint16_t w
 		rm->sample[i].repeat = (sample_data[26] << 9) | (sample_data[27] << 1);
 		rm->sample[i].repeat_length = (sample_data[28] << 9) | (sample_data[29] << 1);
 		rm->sample[i].sample_data = (int8_t *) mod + next_wave;
-		fprintf(stderr, "sample %i at 0x%X, length=%i, repeat=%i, repeat_length=%i\n", i + 1, next_wave, rm->sample[i].length, rm->sample[i].repeat, rm->sample[i].repeat_length);
+		fprintf(stderr, "%.22s sample %i at 0x%X, length=%i, repeat=%i, repeat_length=%i\n", rm->sample[i].name, i + 1, next_wave, rm->sample[i].length, rm->sample[i].repeat, rm->sample[i].repeat_length);
 		next_wave += rm->sample[i].length;
 	}
 }
