@@ -74,6 +74,7 @@ struct RickmodChannelState {
 
 
 struct RickmodState {
+	char			name[21];
 	uint8_t			*data;
 
 	uint8_t			samples;

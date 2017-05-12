@@ -623,6 +623,9 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 		_set_row_channel(rm, i);
 	}
 
+	memcpy(rm->name, mod, 20);
+	rm->name[20] = 0;
+
 	#if 0
 	else {
 		rm->song_length = mod[470];
@@ -680,6 +683,7 @@ int main(int argc, char **argv) {
 	fclose(fp);
 	
 	rm = rm_init(44100, data, len);
+	fprintf(stderr, "songname: %s\n", rm->name);
 	//rm->channel[0].sample = rm->channel[0].play_sample = 12, rm->channel[0].trigger = 1;
 	//ma_set_samplerate(&rm->mix[0], 4148);
 	//ma_set_volume(&rm->mix[0], 64);
