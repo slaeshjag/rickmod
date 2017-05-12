@@ -120,7 +120,9 @@ static void _calculate_volume_slide(struct RickmodChannelEffect *rce, uint8_t fa
 
 static void _do_row(struct RickmodState *rm, int channel) {
 	struct RickmodChannelEffect rce = rm->channel[channel].rce;
-
+	uint32_t pos = 2;
+	
+	rce.retrig = 0;
 
 	if (!rce.effect) {
 	} else if ((rce.effect & 0xF00) == 0x000) {
@@ -150,6 +152,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 			rce.vibrato_pos = 0;
 	} else if ((rce.effect & 0xF00) == 0x900) {
 		rm->channel[channel].sample_pos = (rce.effect & 0xFF) << 8;
+		pos = (rce.effect & 0xFF) << 8;
 	} else if ((rce.effect & 0xF00) == 0xA00) {
 		if (rce.effect & 0xFF)
 			rce.volume_slide = rce.effect & 0xFF;
@@ -191,6 +194,10 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		} else {
 			rce.loop_row = rm->cur.row;
 		}
+	} else if ((rce.effect & 0xFF0) == 0xE90) {
+		rce.retrig = rce.effect & 0xF;
+		rce.reset_note = 1;
+		fprintf(stderr, "retrig chnl %i %i\n", channel, rce.retrig);
 	} else if ((rce.effect & 0xFF0) == 0xEA0) {
 		rce.volume += rce.effect & 0xF;
 		if (rce.volume > 64)
@@ -219,7 +226,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		ma_set_samplerate(&rm->mix[channel], rickmod_lut_samplerate[rce.note - 113]);
 		rm->channel[channel].sample = rce.sample;
 		rm->channel[channel].play_sample = rce.sample;
-		rm->channel[channel].sample_pos = 0;
+		rm->channel[channel].sample_pos = pos;
 
 		_flush_channel_samples(rm, channel);
 	}
@@ -299,6 +306,15 @@ static void _handle_delayed_row(struct RickmodState *rm) {
 	int i;
 	for (i = 0; i < 4; i++)
 		_do_row(rm, i);
+}
+
+
+static void _handle_retrig(struct RickmodState *rm) {
+	int i;
+
+	for (i = 0; i < 4; i++)
+		if (rm->channel[i].rce.retrig && !(rm->cur.tick % rm->channel[i].rce.retrig))
+			_do_row(rm, i);
 }
 
 
@@ -454,7 +470,7 @@ loop:
 		if (!s->repeat_length) {
 			ma_set_samplerate(rcs->rm->mix + rcs->channel, 0); // no more samples please
 			rcs->play_sample = 0;
-			pos = 0;
+			pos = 2;
 			memset(buff + i, 0, (1 << MA_SAMPLE_BUFFER_LEN) - i);
 			break;
 		}
@@ -646,7 +662,10 @@ int main(int argc, char **argv) {
 	_pull_samples(&rm->channel[0], (void *) buff + 1536);
 	_pull_samples(&rm->channel[0], (void *) buff + 1792);
 	_pull_samples(&rm->channel[0], (void *) buff + 2048);*/
-	fp = fopen("/tmp/out.raw", "w");
+	if (argc<3)
+		fp = fopen("/tmp/out.raw", "w");
+	else
+		fp = fopen(argv[2], "w");
 	for (i = 0; i < 200; i++) {
 		tmp_mix(rm, buff, 44100);
 		fwrite(buff, 44100, 4, fp);

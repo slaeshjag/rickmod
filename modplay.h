@@ -17,15 +17,18 @@ struct RickmodChannelEffect {
 
 	uint16_t		portamento_target;
 	uint8_t			portamento_speed;
+	uint8_t			portamento_vol;
 	uint8_t			arpeggio_save;
 	uint8_t			vibrato_pos;
 	uint8_t			vibrato_speed;
 	uint8_t			vibrato_wave;
+	uint8_t			vibrato_vol;
 	uint16_t		last_vibrato;
 
 	uint8_t			loop_count;
 	uint8_t			loop_row;
 	uint8_t			volume_slide;
+	uint8_t			retrig;
 };
 
 
