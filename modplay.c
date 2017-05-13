@@ -90,6 +90,26 @@ static void _calculate_portamento(struct RickmodChannelEffect *rce) {
 }
 
 
+static void _calculate_tremolo(struct RickmodChannelEffect *rce) {
+	int16_t tremolo_level;
+	uint16_t tremolo;
+	rce->tremolo_pos += rce->tremolo_speed;
+	if ((rce->tremolo_wave & 0x3) == 0) {
+		tremolo_level = ((int16_t) sinetable[rce->tremolo_pos & 0x1F])*(rce->tremolo_pos&0x20)?-1:1;
+	} else if ((rce->tremolo_wave & 0x3) == 1) {
+		tremolo_level = (rce->tremolo_pos & 0x1F) << 3;
+	} else if ((rce->tremolo_wave & 0x3) == 2) {
+		tremolo_level = (rce->tremolo_pos&0x1F)>15?255:0;
+	} else {
+		tremolo_level = rand() & 0x7F;
+	}
+	tremolo = (tremolo_level * (rce->tremolo_speed & 0xF) >> 6) + rce->volume;
+	if (tremolo < 0) tremolo = 0;
+	if (tremolo > 64) tremolo = 64;
+	rce->last_tremolo = tremolo;
+}
+
+
 static void _calculate_vibrato(struct RickmodChannelEffect *rce) {
 	int16_t vibrato_level;
 	rce->vibrato_pos += (rce->vibrato_speed >> 4);
@@ -111,13 +131,13 @@ static void _calculate_vibrato(struct RickmodChannelEffect *rce) {
 }
 
 
-static void _calculate_volume_slide(struct RickmodChannelEffect *rce, uint8_t fallback) {
+static void _calculate_volume_slide(struct RickmodChannelEffect *rce, uint8_t fallback, uint8_t parm) {
 	uint8_t effect;
 
 	effect = rce->effect & 0xFF;
 	if (!effect && !fallback)
-		return;
-	if (!effect)
+		effect = parm;
+	else if (!effect)
 		effect = rce->volume_slide;
 	if (effect & 0xF0) {
 		rce->volume += (effect & 0xF0) >> 4;
@@ -134,6 +154,7 @@ static void _calculate_volume_slide(struct RickmodChannelEffect *rce, uint8_t fa
 
 static void _do_row(struct RickmodState *rm, int channel) {
 	struct RickmodChannelEffect rce = rm->channel[channel].rce;
+	int8_t reset = 0xFF;
 	uint32_t pos = 2;
 	
 	rce.retrig = 0;
@@ -150,21 +171,41 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		if (rce.effect & 0xFF)
 			rce.portamento_speed = rce.effect;
 	} else if ((rce.effect & 0xF00) == 0x400) {
-		if (rce.vibrato_wave & 4)
-			_set_samplerate_finetune(&rm->mix[channel], rickmod_lut_samplerate[rce.last_vibrato - 113], rce.finetune);
-		else
+		if (rce.vibrato_wave & 4) {
+			if (rce.last_vibrato)
+				_set_samplerate_finetune(&rm->mix[channel], rickmod_lut_samplerate[rce.last_vibrato - 113], rce.finetune);
+		} else
 			rce.vibrato_pos = 0;
 		if (rce.effect & 0xFF)
 			rce.vibrato_speed = rce.effect & 0xFF;
+		reset &= ~1;
 	} else if ((rce.effect & 0xF00) == 0x500) {
 		rce.reset_note = 0;
 		if (rce.row_note)
 			rce.portamento_target = rce.row_note;
+		if (rce.effect & 0xFF)
+			rce.portamento_vol = rce.effect & 0xFF;
 	} else if ((rce.effect & 0xF00) == 0x600) {
-		if (rce.vibrato_wave & 4)
-			_set_samplerate_finetune(&rm->mix[channel], rickmod_lut_samplerate[rce.last_vibrato - 113], rce.finetune);
-		else
+		if (rce.vibrato_wave & 4) {
+			if (rce.last_vibrato)
+				_set_samplerate_finetune(&rm->mix[channel], rickmod_lut_samplerate[rce.last_vibrato - 113], rce.finetune);
+		} else
 			rce.vibrato_pos = 0;
+		if (rce.effect & 0xFF)
+			rce.vibrato_vol = rce.effect & 0xFF;
+		reset &= ~1;
+	} else if ((rce.effect & 0xF00) == 0x700) {
+		if (rce.tremolo_wave & 4) {
+			if (rce.last_tremolo)
+				ma_set_volume(&rm->mix[channel], rce.last_tremolo);
+			else
+				ma_set_volume(&rm->mix[channel], rce.volume);
+		} else
+			rce.tremolo_pos = 0;
+		if (rce.effect & 0xFF)
+			rce.tremolo_speed = rce.effect & 0xFF;
+		reset &= ~2;
+		goto no_volume;
 	} else if ((rce.effect & 0xF00) == 0x900) {
 		pos = (rce.effect & 0xFF) << 8;
 		if (pos)
@@ -247,6 +288,12 @@ static void _do_row(struct RickmodState *rm, int channel) {
 	}
 
 	ma_set_volume(&rm->mix[channel], rce.volume);
+no_volume:
+	
+	if (reset & 1)
+		rce.last_vibrato = 0;
+	if (reset & 2)
+		rce.last_tremolo = 0;
 	
 	if (rce.reset_note) {
 		rm->channel[channel].trigger = 1;
@@ -303,14 +350,17 @@ static void _handle_tick_effect(struct RickmodState *rm, int channel) {
 		goto special_note;
 	} else if ((rce.effect & 0xF00) == 0x500) {
 		_calculate_portamento(&rce);
-		_calculate_volume_slide(&rce, 0);
+		_calculate_volume_slide(&rce, 0, rce.portamento_vol);
 	} else if ((rce.effect & 0xF00) == 0x600) {
 		_calculate_vibrato(&rce);
 		note = rce.last_vibrato;
-		_calculate_volume_slide(&rce, 0);
+		_calculate_volume_slide(&rce, 0, rce.vibrato_vol);
 		goto special_note;
+	} else if ((rce.effect & 0xF00) == 0x700) {
+		_calculate_tremolo(&rce);
+		ma_set_volume(&rm->mix[channel], rce.last_tremolo);
 	} else if ((rce.effect & 0xF00) == 0xA00) {
-		_calculate_volume_slide(&rce, 1);
+		_calculate_volume_slide(&rce, 1, 0);
 	} else if ((rce.effect & 0xFF0) == 0xEC0) {
 		if ((rce.effect & 0xF) == rm->cur.tick) {
 			rce.volume = 0;
@@ -321,6 +371,7 @@ special_note:
 	if (note)
 		_set_samplerate_finetune(&rm->mix[channel], rickmod_lut_samplerate[note - 113], rce.finetune);
 	ma_set_volume(&rm->mix[channel], rce.volume);
+tremolo:
 	rm->channel[channel].rce = rce;
 	
 }
