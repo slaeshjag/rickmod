@@ -3,10 +3,15 @@
 #include "lut.h"
 
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <string.h>
 
+#ifdef STANDALONE
+#include <stdlib.h>
+#include <stdio.h>
+#else
+#define fprintf(...)
+#endif
 
 static uint16_t valid_notes[48] = {
 	856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453,
@@ -636,7 +641,7 @@ void tmp_mix(struct RickmodState *rm, int16_t *buff, int samples) {
 	}
 }
 
-
+#ifdef STANDALONE
 int main(int argc, char **argv) {
 	FILE *fp;
 	uint8_t *data;
@@ -677,3 +682,4 @@ int main(int argc, char **argv) {
 
 	return 0;
 }
+#endif
