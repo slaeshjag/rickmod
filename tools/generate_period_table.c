@@ -27,9 +27,9 @@ int main(int argc, char **argv) {
 	fp = fopen(argv[1], "w");
 
 	fprintf(fp, "#include <stdint.h>\n\n");
-	fprintf(fp, "uint16_t rickmod_lut_samplerate[743] = {\n");
+	fprintf(fp, "uint16_t rickmod_lut_samplerate[744] = {\n");
 	
-	for (i = 0; i < 743; i++) {
+	for (i = 0; i < 744; i++) {
 		fprintf(fp, "\t%i,\n", calculate_samplerate(i + 113));
 	}
 

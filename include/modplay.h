@@ -24,6 +24,12 @@ struct RickmodChannelEffect {
 	uint8_t			vibrato_wave;
 	uint8_t			vibrato_vol;
 	uint16_t		last_vibrato;
+	uint8_t			tremolo_pos;
+	uint8_t			tremolo_speed;
+	uint8_t			tremolo_wave;
+	int8_t			last_tremolo;
+	uint8_t			delay_ticks;
+	uint8_t			sample_pos;
 
 	uint8_t			loop_count;
 	uint8_t			loop_row;
@@ -73,6 +79,7 @@ struct RickmodChannelState {
 
 
 struct RickmodState {
+	char			name[21];
 	uint8_t			*data;
 
 	uint8_t			samples;

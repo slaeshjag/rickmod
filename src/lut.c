@@ -1,6 +1,6 @@
 #include <stdint.h>
 
-uint16_t rickmod_lut_samplerate[743] = {
+uint16_t rickmod_lut_samplerate[744] = {
 	31388,
 	31113,
 	30842,
@@ -744,6 +744,7 @@ uint16_t rickmod_lut_samplerate[743] = {
 	4158,
 	4153,
 	4148,
+	4143,
 };
 
 uint16_t rickmod_lut_finetune[15] = {
