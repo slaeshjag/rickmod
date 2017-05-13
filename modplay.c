@@ -166,8 +166,14 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		else
 			rce.vibrato_pos = 0;
 	} else if ((rce.effect & 0xF00) == 0x900) {
-		rm->channel[channel].sample_pos = (rce.effect & 0xFF) << 8;
 		pos = (rce.effect & 0xFF) << 8;
+		if (pos)
+			rce.sample_pos = pos;
+		if (!pos)
+			pos = rce.sample_pos;
+		rm->channel[channel].sample_pos = pos;
+		if (!rce.reset_note)
+			fprintf(stderr, "Reset note not set!\n");
 	} else if ((rce.effect & 0xF00) == 0xA00) {
 		if (rce.effect & 0xFF)
 			rce.volume_slide = rce.effect & 0xFF;
@@ -224,8 +230,10 @@ static void _do_row(struct RickmodState *rm, int channel) {
 	} else if ((rce.effect & 0xFF0) == 0xEC0) {
 	} else if ((rce.effect & 0xFF0) == 0xED0) {
 		rce.delay_ticks = rce.effect & 0xF;
-		if (rce.delay_ticks != rm->cur.tick)
+		if (rce.delay_ticks != rm->cur.tick) {
+			rm->channel[channel].rce = rce;
 			return;
+		}
 	} else if ((rce.effect & 0xFF0) == 0xEE0) {
 		rm->cur.set_on_tick = (rce.effect & 0xF) * rm->cur.speed;
 	} else if ((rce.effect & 0xF00) == 0xF00) {
@@ -472,7 +480,6 @@ static void _pull_samples(void *ptr, int8_t *buff) {
 	int8_t sample, *data;
 	uint32_t pos, repeat, wrap, len;
 
-
 	sample = rcs->sample;
 	if (rcs->play_sample == 0)
 		return memset(buff, 0, (1 << MA_SAMPLE_BUFFER_LEN)), (void) 0;
@@ -494,7 +501,7 @@ loop:
 		
 		if (pos < wrap)
 			continue;
-		if (!s->repeat_length) {
+		if (!s->repeat) {
 			ma_set_samplerate(rcs->rm->mix + rcs->channel, 0); // no more samples please
 			rcs->play_sample = 0;
 			pos = 2;
