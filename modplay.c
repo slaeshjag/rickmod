@@ -234,7 +234,6 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		rm->cur.next_row = hex;
 		if (rm->cur.next_pattern >= rm->song_length)
 			rm->cur.next_pattern = 0;
-		//fprintf(stderr, "Jumping to %i:%i\n", rm->cur.next_pattern, rm->cur.next_row);
 	} else if ((rce.effect & 0xFF0) == 0xE10) {
 		rce.note -= rce.effect & 0xF;
 		if (rce.note < 113)
@@ -420,17 +419,11 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 		rce.reset_note = 0;
 		note = rce.note;
 		rce.row_note = 0;
-		//rce.row_note = 0;
-		/*ma_set_samplerate(&rm->mix[channel], 0);
-		rm->channel[channel].play_sample = 0;
-		_flush_channel_samples(rm, channel);
-		return;*/
 	} else {
 		if (note < 113)
 			note = 113;
 		if (note > 856)
 			note = 856;
-		//fprintf(stderr, "setting note %i on channel %i\n", note, channel);
 		rce.row_note = note;
 		if ((effect & 0xF00) != 0x300) {
 			rce.reset_note = 1;
@@ -449,7 +442,6 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 		}
 		finetune = rce.finetune;
 	} else {
-		/* XXX: Not responsible for volume portamento glitch */
 		rce.reset_note = 1;
 		rce.volume = rm->sample[sample - 1].volume;
 		finetune = rm->sample[sample - 1].finetune;
@@ -462,12 +454,6 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 		rce.sample = sample;
 		rce.finetune = finetune;
 	}
-	#if 0
-	if (finetune) {
-		note *= rickmod_lut_finetune[finetune - 1];
-		note >>= 16;
-	}
-	#endif
 
 	rm->channel[channel].rce = rce;
 	rce.note = note;
@@ -492,7 +478,6 @@ static void _handle_tick(struct RickmodState *rm) {
 		_set_row_channel(rm, 3);
 		_handle_delayed_row(rm);
 	} else {
-		//_handle_delayed_row(rm);
 		_handle_tick_effects(rm);
 		_handle_retrig(rm);
 	}
@@ -547,7 +532,6 @@ loop:
 		if (len > (1 << MA_SAMPLE_BUFFER_LEN) - i)
 			len = (1 << MA_SAMPLE_BUFFER_LEN) - i;
 		memcpy(buff + i, data + pos, len);
-		//fprintf(stderr, "Copied %i bytes to buffer, from pos=%i from sample %i, src=%i, wrap=%i\n", len, i, rcs->sample, pos, wrap);
 		i += len;
 		pos += len;
 		
@@ -566,8 +550,6 @@ loop:
 		goto loop;
 	}
 
-	//if (sample == 18)
-	//	fprintf(stderr, "18 is at %i (wrap=%i)\n", pos, wrap);
 	rcs->sample_pos = pos;
 }
 
@@ -619,8 +601,6 @@ static void _parse_pattern_data(struct RickmodState *rm, uint8_t *data) {
 				rm->pattern[i].row[j].channel[k].sample = (data[0] & 0xF0) | (data[2] >> 4);
 				rm->pattern[i].row[j].channel[k].note = ((data[0] & 0xF) << 8) | data[1];
 				rm->pattern[i].row[j].channel[k].effect = ((data[2] & 0xF) << 8) | data[3];
-				/*if (rm->pattern[i].row[j].channel[k].note >= 113 && rm->pattern[i].row[j].channel[k].note <= 856)
-					rm->pattern[i].row[j].channel[k].note = rickmod_lut_samplerate[rm->pattern[i].row[j].channel[k].note - 113];*/
 			}
 }
 
@@ -743,18 +723,6 @@ int main(int argc, char **argv) {
 	
 	rm = rm_init(44100, data, len);
 	fprintf(stderr, "songname: %s\n", rm->name);
-	//rm->channel[0].sample = rm->channel[0].play_sample = 12, rm->channel[0].trigger = 1;
-	//ma_set_samplerate(&rm->mix[0], 4148);
-	//ma_set_volume(&rm->mix[0], 64);
-	/*_pull_samples(&rm->channel[0], (void *) buff);
-	_pull_samples(&rm->channel[0], (void *) buff + 256);
-	_pull_samples(&rm->channel[0], (void *) buff + 512);
-	_pull_samples(&rm->channel[0], (void *) buff + 768);
-	_pull_samples(&rm->channel[0], (void *) buff + 1024);
-	_pull_samples(&rm->channel[0], (void *) buff + 1280);
-	_pull_samples(&rm->channel[0], (void *) buff + 1536);
-	_pull_samples(&rm->channel[0], (void *) buff + 1792);
-	_pull_samples(&rm->channel[0], (void *) buff + 2048);*/
 	if (argc<3)
 		fp = fopen("/tmp/out.raw", "w");
 	else
