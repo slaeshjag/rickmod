@@ -174,8 +174,9 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		if (rce.vibrato_wave & 4) {
 			if (rce.last_vibrato)
 				_set_samplerate_finetune(&rm->mix[channel], rickmod_lut_samplerate[rce.last_vibrato - 113], rce.finetune);
-		} else
+		} else {
 			rce.vibrato_pos = 0;
+		}
 		if (rce.effect & 0xFF)
 			rce.vibrato_speed = rce.effect & 0xFF;
 		reset &= ~1;
@@ -601,7 +602,7 @@ static void _find_number_of_patterns(struct RickmodState *rm, int max_patterns) 
 
 	max = 0;
 
-	for (i = 0; i < rm->song_length; i++)
+	for (i = 0; i < 128; i++)
 		if ((rm->pattern_lookup[i] & mask) > max)
 			max = (rm->pattern_lookup[i] & mask);
 	max++;
