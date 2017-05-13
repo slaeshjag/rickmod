@@ -552,7 +552,7 @@ loop:
 		
 		if (pos < wrap)
 			continue;
-		if (!s->repeat) {
+		if (!s->repeat_length || (!s->repeat && s->repeat_length <= 2)) {
 			ma_set_samplerate(rcs->rm->mix + rcs->channel, 0); // no more samples please
 			rcs->play_sample = 0;
 			pos = 2;
