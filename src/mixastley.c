@@ -24,10 +24,14 @@ freely, subject to the following restrictions:
 
 #include <string.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <math.h>
 
 #include "mixastley.h"
+
+#ifdef STANDALONE
+#include <stdio.h>
+#else
+#define fprintf(...)
+#endif
 
 
 

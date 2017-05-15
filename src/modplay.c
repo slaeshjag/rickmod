@@ -3,10 +3,15 @@
 #include "lut.h"
 
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <string.h>
 
+#ifdef STANDALONE
+#include <stdlib.h>
+#include <stdio.h>
+#else
+#define fprintf(...)
+#endif
 
 static uint16_t valid_notes[48] = {
 	856, 808, 762, 720, 678, 640, 604, 570, 538, 508, 480, 453,
@@ -694,7 +699,7 @@ static void _print_pattern(struct RickmodState *rm, int pattern) {
 #endif
 
 
-void tmp_mix(struct RickmodState *rm, int16_t *buff, int samples) {
+void rm_mix_s16(struct RickmodState *rm, int16_t *buff, int samples) {
 	int32_t sample[samples * 2];
 	int i;
 
@@ -705,7 +710,18 @@ void tmp_mix(struct RickmodState *rm, int16_t *buff, int samples) {
 	}
 }
 
+void rm_mix_u8(struct RickmodState *rm, uint8_t *buff, int samples) {
+	int32_t sample[samples * 2];
+	int i;
 
+	_mix(rm, sample, samples);
+	for (i = 0; i < samples; i++) {
+		buff[i<<1] = ((sample[i] >> 9) & 0xFF) + 128;
+		buff[(i<<1) + 1] = ((sample[i+samples] >> 9) & 0xFF) + 128;
+	}
+}
+
+#ifdef STANDALONE
 int main(int argc, char **argv) {
 	FILE *fp;
 	uint8_t *data;
@@ -728,10 +744,11 @@ int main(int argc, char **argv) {
 	else
 		fp = fopen(argv[2], "w");
 	for (i = 0; i < 200; i++) {
-		tmp_mix(rm, buff, 44100);
+		rm_mix_s16(rm, buff, 44100);
 		fwrite(buff, 44100, 4, fp);
 	}
 	fclose(fp);
 
 	return 0;
 }
+#endif
