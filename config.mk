@@ -2,7 +2,7 @@
 NAME		= rickmod
 
 # Change this to build a standalone modplayer binary
-STANDALONE	= 0
+STANDALONE	= 1
 
 # Filenames
 AFILE		= $(NAME).a

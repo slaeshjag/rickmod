@@ -716,8 +716,8 @@ void rm_mix_u8(struct RickmodState *rm, uint8_t *buff, int samples) {
 
 	_mix(rm, sample, samples);
 	for (i = 0; i < samples; i++) {
-		buff[i<<1] = ((sample[i] >> 1) & 0xFF) + 128;
-		buff[(i<<1) + 1] = ((sample[i+samples] >> 1) & 0xFF) + 128;
+		buff[i<<1] = ((sample[i] >> 9) & 0xFF) + 128;
+		buff[(i<<1) + 1] = ((sample[i+samples] >> 9) & 0xFF) + 128;
 	}
 }
 
