@@ -699,7 +699,7 @@ static void _print_pattern(struct RickmodState *rm, int pattern) {
 #endif
 
 
-void tmp_mix(struct RickmodState *rm, int16_t *buff, int samples) {
+void rm_mix_s16(struct RickmodState *rm, int16_t *buff, int samples) {
 	int32_t sample[samples * 2];
 	int i;
 
@@ -707,6 +707,17 @@ void tmp_mix(struct RickmodState *rm, int16_t *buff, int samples) {
 	for (i = 0; i < samples; i++) {
 		buff[i<<1] = sample[i] >> 1;
 		buff[(i<<1) + 1] = sample[i+samples] >> 1;
+	}
+}
+
+void rm_mix_u8(struct RickmodState *rm, uint8_t *buff, int samples) {
+	int32_t sample[samples * 2];
+	int i;
+
+	_mix(rm, sample, samples);
+	for (i = 0; i < samples; i++) {
+		buff[i<<1] = ((sample[i] >> 1) & 0xFF) + 128;
+		buff[(i<<1) + 1] = ((sample[i+samples] >> 1) & 0xFF) + 128;
 	}
 }
 
@@ -733,7 +744,7 @@ int main(int argc, char **argv) {
 	else
 		fp = fopen(argv[2], "w");
 	for (i = 0; i < 200; i++) {
-		tmp_mix(rm, buff, 44100);
+		rm_mix_s16(rm, buff, 44100);
 		fwrite(buff, 44100, 4, fp);
 	}
 	fclose(fp);
