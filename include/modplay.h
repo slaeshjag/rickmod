@@ -119,5 +119,6 @@ void rm_mix_s16(struct RickmodState *rm, int16_t *buff, int samples);
 void rm_mix_u8(struct RickmodState *rm, uint8_t *buff, int samples);
 void rm_repeat_set(struct RickmodState *rm, uint8_t repeat);
 uint8_t rm_end_reached(struct RickmodState *rm);
+void rm_free(struct RickmodState *rm);
 
 #endif

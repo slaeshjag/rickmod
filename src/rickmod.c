@@ -748,6 +748,11 @@ uint8_t rm_end_reached(struct RickmodState *rm) {
 }
 
 
+void rm_free(struct RickmodState *rm) {
+	free(rm);
+}
+
+
 #ifdef STANDALONE
 int main(int argc, char **argv) {
 	FILE *fp;
@@ -770,11 +775,14 @@ int main(int argc, char **argv) {
 		fp = fopen("/tmp/out.raw", "w");
 	else
 		fp = fopen(argv[2], "w");
+	//rm_repeat_set(rm, 1);
 	while (!rm_end_reached(rm)) {
 		rm_mix_s16(rm, buff, 44100);
 		fwrite(buff, 44100, 4, fp);
 	}
 	fclose(fp);
+	free(rm);
+	free(data);
 
 	return 0;
 }
