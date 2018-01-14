@@ -226,8 +226,9 @@ static void _do_row(struct RickmodState *rm, int channel) {
 			rce.volume_slide = rce.effect & 0xFF;
 	} else if ((rce.effect & 0xF00) == 0xB00) {
 		rm->cur.next_pattern = rce.effect & 0xFF;
-		if (rm->cur.next_pattern >= rm->song_length)
+		if (rm->cur.next_pattern >= rm->song_length) {
 			rm->cur.next_pattern = 0;
+		}
 		rm->cur.next_row = 0;
 	} else if ((rce.effect & 0xF00) == 0xC00) {
 		rce.volume = rce.effect & 0xFF;
@@ -237,8 +238,9 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		hex = rce.effect & 0x7F;
 		hex = (hex & 0xF) + ((hex & 0xF0) >> 4) * 10;
 		rm->cur.next_row = hex;
-		if (rm->cur.next_pattern >= rm->song_length)
+		if (rm->cur.next_pattern >= rm->song_length) {
 			rm->cur.next_pattern = 0;
+		}
 	} else if ((rce.effect & 0xFF0) == 0xE10) {
 		rce.note -= rce.effect & 0xF;
 		if (rce.note < 113)
@@ -469,14 +471,22 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 
 static void _handle_tick(struct RickmodState *rm) {
 	if (rm->cur.tick == rm->cur.speed + rm->cur.set_on_tick) {
+		if (rm->cur.next_pattern < rm->cur.pattern && !rm->repeat)
+			return (void) (rm->end = 1);
 		rm->cur.row = rm->cur.next_row, rm->cur.pattern = rm->cur.next_pattern;
 		rm->cur.tick = 0;
 		rm->cur.set_on_tick = 0;
 		rm->cur.next_row++;
 		if (rm->cur.next_row == 64)
 			rm->cur.next_row = 0, rm->cur.next_pattern = rm->cur.pattern + 1;
-		if (rm->cur.next_pattern >= rm->song_length)
-			rm->cur.next_pattern = 0;
+		if (rm->cur.next_pattern >= rm->song_length) {
+			if (rm->repeat)
+				rm->cur.next_pattern = 0;
+			else {
+				rm->end = 1;
+				return;
+			}
+		}
 		_set_row_channel(rm, 0);
 		_set_row_channel(rm, 1);
 		_set_row_channel(rm, 2);
@@ -494,6 +504,9 @@ static void _mix(struct RickmodState *rm, int32_t *buffer, int samples) {
 	int i, len;
 
 	memset(buffer, 0, 4*2*samples);
+	if (rm->end)
+		return;
+	
 	/* TODO: This is where all timing will be handled regarding row/pattern/effect playback */
 	for (i = 0; i < samples;) {
 		len = rm->cur.samples_per_tick - rm->cur.samples_this_tick;
@@ -511,6 +524,8 @@ static void _mix(struct RickmodState *rm, int32_t *buffer, int samples) {
 		rm->cur.tick++;
 		rm->cur.samples_this_tick = 0;
 		_handle_tick(rm);
+		if (rm->end)
+			break;
 	}
 }
 
@@ -618,6 +633,7 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	rm = malloc(sizeof(*rm));
 	rm->data = mod;
 	rm->samplerate = sample_rate;
+	rm->repeat = rm->end = 0;
 
 	if (mod[1080] == 'M' && mod[1082] == 'K') {
 		fprintf(stderr, "Found 31 sample mod\n");
@@ -721,6 +737,17 @@ void rm_mix_u8(struct RickmodState *rm, uint8_t *buff, int samples) {
 	}
 }
 
+
+void rm_repeat_set(struct RickmodState *rm, uint8_t repeat) {
+	rm->repeat = repeat;
+}
+
+
+uint8_t rm_end_reached(struct RickmodState *rm) {
+	return rm->end;
+}
+
+
 #ifdef STANDALONE
 int main(int argc, char **argv) {
 	FILE *fp;
@@ -743,7 +770,7 @@ int main(int argc, char **argv) {
 		fp = fopen("/tmp/out.raw", "w");
 	else
 		fp = fopen(argv[2], "w");
-	for (i = 0; i < 200; i++) {
+	while (!rm_end_reached(rm)) {
 		rm_mix_s16(rm, buff, 44100);
 		fwrite(buff, 44100, 4, fp);
 	}
