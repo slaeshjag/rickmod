@@ -92,7 +92,8 @@ struct RickmodState {
 	struct MAState		mix[4];
 	struct RickmodChannelState channel[4];
 	uint16_t		samplerate;
-
+	uint8_t			repeat;
+	uint8_t			end;
 
 	struct {
 		uint8_t		pattern;
@@ -116,5 +117,7 @@ struct RickmodState {
 struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len);
 void rm_mix_s16(struct RickmodState *rm, int16_t *buff, int samples);
 void rm_mix_u8(struct RickmodState *rm, uint8_t *buff, int samples);
+void rm_repeat_set(struct RickmodState *rm, uint8_t repeat);
+uint8_t rm_end_reached(struct RickmodState *rm);
 
 #endif
