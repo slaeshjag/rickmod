@@ -1,5 +1,5 @@
 #include "mixastley.h"
-#include "modplay.h"
+#include "rickmod.h"
 #include "lut.h"
 
 #include <stdint.h>
