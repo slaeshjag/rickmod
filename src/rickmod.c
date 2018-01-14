@@ -220,7 +220,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 			pos = rce.sample_pos;
 		rm->channel[channel].sample_pos = pos;
 		if (!rce.reset_note)
-			fprintf(stderr, "Reset note not set!\n");
+			_flush_channel_samples(rm, channel);
 	} else if ((rce.effect & 0xF00) == 0xA00) {
 		if (rce.effect & 0xFF)
 			rce.volume_slide = rce.effect & 0xFF;
