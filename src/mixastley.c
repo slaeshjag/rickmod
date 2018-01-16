@@ -44,6 +44,7 @@ static void resample_refill(struct MAState *rs) {
 }
 
 
+#if 0
 static void resample_filter(struct MAState *rs, int16_t *sample, int samples) {
 	int i, j;
 	int32_t l, h, b, d1, d2, f1;
@@ -64,6 +65,7 @@ static void resample_filter(struct MAState *rs, int16_t *sample, int samples) {
 		sample[i] = l;
 	}
 }
+#endif
 
 
 void ma_add(struct MAState *rs, int32_t *sample, int samples) {

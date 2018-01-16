@@ -378,7 +378,7 @@ special_note:
 	if (note)
 		_set_samplerate_finetune(&rm->mix[channel], rickmod_lut_samplerate[note - 113], rce.finetune);
 	ma_set_volume(&rm->mix[channel], rce.volume);
-tremolo:
+//tremolo:
 	rm->channel[channel].rce = rce;
 	
 }
@@ -627,7 +627,7 @@ static void _parse_pattern_data(struct RickmodState *rm, uint8_t *data) {
 
 struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	struct RickmodState *rm;
-	uint8_t patterns;
+	//uint8_t patterns;
 	int max_patterns, i;
 
 	rm = malloc(sizeof(*rm));
