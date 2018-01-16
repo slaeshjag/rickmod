@@ -11,6 +11,7 @@
 #include <stdio.h>
 #else
 #define fprintf(...)
+int rand(void);
 #endif
 
 static uint16_t valid_notes[48] = {
