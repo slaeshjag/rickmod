@@ -1,5 +1,5 @@
 #include "mixastley.h"
-#include "modplay.h"
+#include "rickmod.h"
 #include "lut.h"
 
 #include <stdint.h>
@@ -11,6 +11,7 @@
 #include <stdio.h>
 #else
 #define fprintf(...)
+int rand(void);
 #endif
 
 static uint16_t valid_notes[48] = {

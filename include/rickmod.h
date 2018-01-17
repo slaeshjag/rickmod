@@ -1,5 +1,5 @@
-#ifndef MODPLAY_H__
-#define	MODPLAY_H__
+#ifndef RICKMOD_H_
+#define	RICKMOD_H_
 
 #include "mixastley.h"
 #include <stdint.h>
