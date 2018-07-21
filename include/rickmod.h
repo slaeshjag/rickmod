@@ -95,6 +95,9 @@ struct RickmodState {
 	uint8_t			repeat;
 	uint8_t			end;
 
+	void			(*row_callback)(void *data);
+	void			*user_data;
+
 	struct {
 		uint8_t		pattern;
 		uint8_t		translated_pattern;

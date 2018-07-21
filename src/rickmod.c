@@ -493,6 +493,8 @@ static void _handle_tick(struct RickmodState *rm) {
 		_set_row_channel(rm, 2);
 		_set_row_channel(rm, 3);
 		_handle_delayed_row(rm);
+		if (rm->row_callback)
+			rm->row_callback(rm->user_data);
 	} else {
 		_handle_tick_effects(rm);
 		_handle_retrig(rm);
@@ -635,6 +637,7 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	rm->data = mod;
 	rm->samplerate = sample_rate;
 	rm->repeat = rm->end = 0;
+	rm->row_callback = NULL;
 
 	if (mod[1080] == 'M' && mod[1082] == 'K') {
 		fprintf(stderr, "Found 31 sample mod\n");
@@ -751,6 +754,12 @@ uint8_t rm_end_reached(struct RickmodState *rm) {
 
 void rm_free(struct RickmodState *rm) {
 	free(rm);
+}
+
+
+void rm_row_callback_set(struct RickmodState *rm, void (*row_callback)(void *data), void *user_data) {
+	rm->user_data = user_data;
+	rm->row_callback = row_callback;
 }
 
 

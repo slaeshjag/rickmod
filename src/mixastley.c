@@ -121,6 +121,7 @@ struct MAState ma_init(int target_sample_rate) {
 void ma_set_samplerate(struct MAState *rs, int samplerate) {
 	int bw;
 
+	fprintf(stderr, "samplerate=%i\n", samplerate);
 	bw = (samplerate < rs->target_rate) ? samplerate : rs->target_rate;
 	samplerate *= 0x10000;
 	rs->fraction_per_sample = samplerate/rs->target_rate;
