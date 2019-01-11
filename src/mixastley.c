@@ -86,8 +86,9 @@ void ma_add(struct MAState *rs, int32_t *sample, int samples) {
 		tmp = rs->cur_sample - rs->last_sample; // 31 bit
 		tmp >>= 20;
 		tmp *= rs->sample_pos;
-		tmp >>= 12;
-		sample[i] += ((((((rs->last_sample >> 16) - 1) + tmp) << 1) * rs->volume) >> 6);
+		tmp >>= 11;
+		sample[i] += ((((((rs->last_sample >> 11)) + tmp) - 1) * rs->volume) >> 6);
+		//sample[i] += (((rs->last_sample >> 16) * rs->volume) >> 6);
 		rs->sample_pos += fraction_per_sample;
 		if (rs->sample_pos >= 0x10000) {
 			rs->next_sample += rs->sample_pos >> 16;
