@@ -832,6 +832,17 @@ int rm_save(struct RickmodState *rm, const char *path) {
 	return 1;
 }
 
+
+int rm_lookup_note(int note) {
+	int i;
+
+	for (i = 0; i < 48; i++)
+		if (note == valid_notes[48])
+			return i;
+	return -1;
+}
+
+
 #endif
 
 

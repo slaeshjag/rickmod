@@ -127,5 +127,6 @@ void rm_row_callback_set(struct RickmodState *rm, void (*row_callback)(void *dat
 
 // Only available if rickmod was built with -DTRACKER
 int rm_save(struct RickmodState *rm, const char *path);
+int rm_lookup_note(int note); // 0 = C-3, 47 = B-5, -1 = invalid
 
 #endif
