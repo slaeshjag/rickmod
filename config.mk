@@ -3,6 +3,7 @@ NAME		= rickmod
 
 # Change this to build a standalone modplayer binary
 STANDALONE	?= 0
+TRACKER		?= 0
 
 # Filenames
 AFILE		= $(NAME).a
@@ -28,6 +29,10 @@ INCLUDES	= $(addprefix -I,$(INCLUDEDIRS))
 CFLAGS		+= $(INCLUDES)
 ifeq ($(STANDALONE),1)
 CFLAGS		+= -DSTANDALONE
+endif
+
+ifeq ($(TRACKER),1)
+CFLAGS		+= -DTRACKER
 endif
 
 # Makefile configurations

@@ -125,4 +125,7 @@ uint8_t rm_end_reached(struct RickmodState *rm);
 void rm_free(struct RickmodState *rm);
 void rm_row_callback_set(struct RickmodState *rm, void (*row_callback)(void *data), void *user_data);
 
+// Only available if rickmod was built with -DTRACKER
+int rm_save(struct RickmodState *rm, const char *path);
+
 #endif

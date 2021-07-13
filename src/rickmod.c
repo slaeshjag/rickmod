@@ -6,6 +6,11 @@
 #include <stddef.h>
 #include <string.h>
 
+#ifdef TRACKER
+#include <stdlib.h>
+#include <stdio.h>
+#endif
+
 #ifdef STANDALONE
 #include <stdlib.h>
 #include <stdio.h>
@@ -609,7 +614,7 @@ static void _find_number_of_patterns(struct RickmodState *rm, int max_patterns) 
 
 	for (i = 0; i < 128; i++)
 		if ((rm->pattern_lookup[i] & mask) > max)
-			max = (rm->pattern_lookup[i] & mask);
+			max = (rm->pattern_lookup[i] & mask), rm->pattern_lookup[i] &= mask;
 	max++;
 	rm->patterns = max;
 }
@@ -763,6 +768,73 @@ void rm_row_callback_set(struct RickmodState *rm, void (*row_callback)(void *dat
 }
 
 
+#ifdef TRACKER
+int rm_save(struct RickmodState *rm, const char *path) {
+	FILE *fp;
+	int i, j, k;
+	uint8_t ch;
+
+	// When the mod file was loaded, extra bits were already masked out, so this is fine
+	_find_number_of_patterns(rm, 128);
+
+	if (!(fp = fopen(path, "wb")))
+		return 0;
+	fwrite(rm->name, 20, 1, fp);
+	for (i = 0; i < 31; i++) {
+		fwrite(rm->sample[i].name, 22, 1, fp);
+		ch = rm->sample[i].length >> 9;
+		fwrite(&ch, 1, 1, fp);
+		ch = rm->sample[i].length >> 1;
+		fwrite(&ch, 1, 1, fp);
+		
+		ch = rm->sample[i].finetune & 0xF;
+		fwrite(&ch, 1, 1, fp);
+		fwrite(&rm->sample[i].volume, 1, 1, fp);
+	
+		ch = rm->sample[i].repeat >> 9;
+		fwrite(&ch, 1, 1, fp);
+		ch = rm->sample[i].repeat >> 1;
+		fwrite(&ch, 1, 1, fp);
+
+		ch = rm->sample[i].repeat_length >> 9;
+		fwrite(&ch, 1, 1, fp);
+		ch = rm->sample[i].repeat_length >> 1;
+		fwrite(&ch, 1, 1, fp);
+	}
+
+	fwrite(&rm->song_length, 1, 1, fp);
+	ch = 127;
+	fwrite(&ch, 1, 1, fp);
+	fwrite(rm->pattern_lookup, 128, 1, fp);
+
+	if (rm->patterns > 63)
+		fwrite("M!K!", 4, 1, fp);
+	else
+		fwrite("M.K.", 4, 1, fp);
+	
+	for (i = 0; i < rm->patterns; i++)
+		for (j = 0; j < 64; j++)
+			for (k = 0; k < 4; k++) {
+				ch = (rm->pattern[i].row[j].channel[k].sample & 0xF0) | ((rm->pattern[i].row[j].channel[k].note >> 8) & 0xF);
+				fwrite(&ch, 1, 1, fp);
+				ch = rm->pattern[i].row[j].channel[k].note;
+				fwrite(&ch, 1, 1, fp);
+				ch = ((rm->pattern[i].row[j].channel[k].sample & 0xF) << 4) | ((rm->pattern[i].row[j].channel[k].effect >> 8) & 0xF);
+				fwrite(&ch, 1, 1, fp);
+				ch = rm->pattern[i].row[j].channel[k].effect & 0xFF;
+				fwrite(&ch, 1, 1, fp);
+			}
+	
+	for (i = 0; i < 31; i++)
+		fwrite(rm->sample[i].sample_data, rm->sample[i].length, 1, fp);
+
+	fclose(fp);
+	return 1;
+}
+
+#endif
+
+
 #ifdef STANDALONE
 int main(int argc, char **argv) {
 	FILE *fp;
@@ -790,9 +862,11 @@ int main(int argc, char **argv) {
 		rm_mix_s16(rm, buff, 44100);
 		fwrite(buff, 44100, 4, fp);
 	}
+	
 	fclose(fp);
 	free(rm);
 	free(data);
+
 
 	return 0;
 }
