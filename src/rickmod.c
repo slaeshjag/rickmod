@@ -37,15 +37,15 @@ static uint8_t sinetable[32] = {
 static int _lookup_arpeggio(int base, int steps) {
 	int i;
 
-	for (i = 0; i < 48; i++)
+	for (i = 0; i < 36; i++)
 		if (valid_notes[i] == base) {
 			if (steps < 0) {
 				if (i + steps < 0)
 					return valid_notes[0];
 				return valid_notes[i + steps];
 			} else {
-				if (i + steps >= 48)
-					return valid_notes[47];
+				if (i + steps >= 36)
+					return valid_notes[35];
 				return valid_notes[i + steps];
 			}
 		}
@@ -845,6 +845,11 @@ int rm_lookup_note(int note) {
 		if (note == valid_notes[i])
 			return i;
 	return -1;
+}
+
+
+void rm_samplerate_set(struct MAState *rs, int note, int finetune) {
+	_set_samplerate_finetune(rs, rickmod_lut_samplerate[valid_notes[note] - 113], finetune);
 }
 
 
