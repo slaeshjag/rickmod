@@ -106,7 +106,7 @@ static void _calculate_tremolo(struct RickmodChannelEffect *rce) {
 	uint16_t tremolo;
 	rce->tremolo_pos += rce->tremolo_speed;
 	if ((rce->tremolo_wave & 0x3) == 0) {
-		tremolo_level = ((int16_t) sinetable[rce->tremolo_pos & 0x1F])*(rce->tremolo_pos&0x20)?-1:1;
+		tremolo_level = ((int16_t) sinetable[rce->tremolo_pos & 0x1F])*((rce->tremolo_pos&0x20)?-1:1);
 	} else if ((rce->tremolo_wave & 0x3) == 1) {
 		tremolo_level = (rce->tremolo_pos & 0x1F) << 3;
 	} else if ((rce->tremolo_wave & 0x3) == 2) {
@@ -583,7 +583,7 @@ loop:
 
 
 static void _parse_sample_info(struct RickmodState *rm, uint8_t *mod, uint16_t wavepos, int samples) {
-	int i, j;
+	int i;
 	uint8_t *sample_data;
 	uint32_t next_wave = wavepos;
 
@@ -591,7 +591,7 @@ static void _parse_sample_info(struct RickmodState *rm, uint8_t *mod, uint16_t w
 		sample_data = mod + 20 + i*30;
 		memcpy(rm->sample[i].name, sample_data, 22);
 		#ifndef TRACKER
-		for (j = 0; j < 22; j++)
+		for (int j = 0; j < 22; j++)
 			if (rm->sample[i].name[j] == 0)
 				rm->sample[i].name[j] = ' ';
 		#endif
