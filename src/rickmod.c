@@ -438,7 +438,7 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 		if (note > 856)
 			note = 856;
 		rce.row_note = note;
-		if ((effect & 0xF00) != 0x300) {
+		if ((effect & 0xF00) != 0x300 && (effect & 0xF00) != 0x500 && (effect & 0xFF0) != 0xED0) {
 			rce.reset_note = 1;
 			rce.note = note;
 		} else {
@@ -450,9 +450,9 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 	sample = rm->pattern[rm->pattern_lookup[rm->cur.pattern]].row[rm->cur.row].channel[channel].sample;
 	if (!sample) {
 		sample = rm->channel[channel].sample;
-		if (rce.reset_note) {
+		/*if (rce.reset_note) {
 			rce.volume = rm->sample[sample - 1].volume;
-		}
+		}*/
 		finetune = rce.finetune;
 	} else {
 		rce.reset_note = 1;
@@ -587,6 +587,11 @@ static void _parse_sample_info(struct RickmodState *rm, uint8_t *mod, uint16_t w
 	uint8_t *sample_data;
 	uint32_t next_wave = wavepos;
 
+	#ifdef TRACKER
+	rm->data = malloc(1024*128*31);
+	memset(rm->data, 0, 1024*128*31);
+	#endif
+
 	for (i = 0; i < samples; i++) {
 		sample_data = mod + 20 + i*30;
 		memcpy(rm->sample[i].name, sample_data, 22);
@@ -602,6 +607,11 @@ static void _parse_sample_info(struct RickmodState *rm, uint8_t *mod, uint16_t w
 		rm->sample[i].repeat = (sample_data[26] << 9) | (sample_data[27] << 1);
 		rm->sample[i].repeat_length = (sample_data[28] << 9) | (sample_data[29] << 1);
 		rm->sample[i].sample_data = (int8_t *) mod + next_wave;
+		
+		#ifdef TRACKER
+		memcpy(rm->data + 1024*128*i, rm->sample[i].sample_data, rm->sample[i].length);
+		rm->sample[i].sample_data = (int8_t *) rm->data + 1024*128*i;
+		#endif
 
 		#ifndef TRACKER
 		fprintf(stderr, "%.22s sample %i at 0x%X, length=%i, repeat=%i, repeat_length=%i\n", rm->sample[i].name, i + 1, next_wave, rm->sample[i].length, rm->sample[i].repeat, rm->sample[i].repeat_length);
@@ -763,6 +773,10 @@ uint8_t rm_end_reached(struct RickmodState *rm) {
 
 
 void rm_free(struct RickmodState *rm) {
+	#ifdef TRACKER
+	free(rm->data);
+	#endif
+
 	free(rm);
 }
 
@@ -773,7 +787,64 @@ void rm_row_callback_set(struct RickmodState *rm, void (*row_callback)(void *dat
 }
 
 
+
 #ifdef TRACKER
+
+struct RickmodState *rm_new(int sample_rate) {
+	struct RickmodState *rm;
+	int i;
+
+	rm = malloc(sizeof(*rm));
+	memset(rm->name, 0, 21);
+	rm->data = malloc(128*1024*31);
+	rm->samples = 31;
+	rm->pattern_lookup = malloc(128);
+	memset(rm->pattern_lookup, 0, 128);
+	rm->patterns = 128;
+	rm->song_length = 1;
+
+	for (i = 0; i < 31; i++) {
+		memset(rm->sample[i].name, 0, 23);
+		rm->sample[i].repeat = 0, rm->sample[i].repeat_length = 2;
+		rm->sample[i].length = 0;
+		rm->sample[i].finetune = 0;
+		rm->sample[i].volume = 0x40;
+		rm->sample[i].sample_data = (int8_t *) rm->data + 128*1024*i;
+	}
+
+	memset(rm->pattern, 0, sizeof(rm->pattern));
+
+	rm->samplerate = sample_rate;
+	rm->repeat = 0;
+	rm->end = 0;
+	rm->row_callback = NULL;
+	
+	rm->cur.bpm = 125;
+	rm->cur.speed = 6;
+	rm->cur.samples_this_tick = 0;
+	rm->cur.tick = 0;
+	rm->cur.set_on_tick = 0;
+	rm->cur.next_row = 0;
+	rm->cur.next_pattern = 0;
+	rm->cur.row = rm->cur.pattern = 0;
+	_set_bpm(rm);
+	
+	for (i = 0; i < 4; i++) {
+		rm->channel[i].rm = rm, rm->channel[i].channel = i, rm->channel[i].sample = rm->channel[i].trigger = rm->channel[i].play_sample = 0;
+		memset(&rm->channel[i].rce, 0, sizeof(rm->channel[i].rce));
+		rm->channel[i].sample_pos = 0;
+		rm->mix[i] = ma_init(sample_rate);
+		ma_set_callback(&rm->mix[i], _pull_samples, &rm->channel[i]);
+		ma_set_volume(&rm->mix[i], 0);
+		ma_set_samplerate(&rm->mix[i], 0);
+		_set_row_channel(rm, i);
+	}
+
+
+	return rm;
+}
+
+
 int rm_save(struct RickmodState *rm, const char *path) {
 	FILE *fp;
 	int i, j, k;
@@ -850,6 +921,11 @@ int rm_lookup_note(int note) {
 
 void rm_samplerate_set(struct MAState *rs, int note, int finetune) {
 	_set_samplerate_finetune(rs, rickmod_lut_samplerate[valid_notes[note] - 113], finetune);
+}
+
+
+int rm_translate_note(int note) {
+	return valid_notes[note];
 }
 
 

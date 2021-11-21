@@ -126,8 +126,10 @@ void rm_free(struct RickmodState *rm);
 void rm_row_callback_set(struct RickmodState *rm, void (*row_callback)(void *data), void *user_data);
 
 // Only available if rickmod was built with -DTRACKER
+struct RickmodState *rm_new(int sample_rate);
 int rm_save(struct RickmodState *rm, const char *path);
 int rm_lookup_note(int note); // 0 = C-3, 35 = B-5, -1 = invalid
 void rm_samplerate_set(struct MAState *rs, int note, int finetune);
+int rm_translate_note(int note); // returns the period number for a note, 0 = C-3
 
 #endif
