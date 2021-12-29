@@ -240,7 +240,12 @@ static void _do_row(struct RickmodState *rm, int channel) {
 		rce.volume = rce.effect & 0xFF;
 	} else if ((rce.effect & 0xF00) == 0xD00) {
 		int hex;
+		#ifndef TRACKER
 		rm->cur.next_pattern = rm->cur.pattern + 1;
+		#else
+		if (!rm->repeat_pattern)
+			rm->cur.next_pattern = rm->cur.pattern + 1;
+		#endif
 		hex = rce.effect & 0x7F;
 		hex = (hex & 0xF) + ((hex & 0xF0) >> 4) * 10;
 		rm->cur.next_row = hex;
@@ -483,8 +488,16 @@ static void _handle_tick(struct RickmodState *rm) {
 		rm->cur.tick = 0;
 		rm->cur.set_on_tick = 0;
 		rm->cur.next_row++;
-		if (rm->cur.next_row == 64)
+		if (rm->cur.next_row == 64) {
+		#ifdef TRACKER
+			if (rm->repeat_pattern)
+				rm->cur.next_row = 0, rm->cur.next_pattern = rm->cur.pattern;
+			else
+				rm->cur.next_row = 0, rm->cur.next_pattern = rm->cur.pattern + 1;
+		#else
 			rm->cur.next_row = 0, rm->cur.next_pattern = rm->cur.pattern + 1;
+		#endif
+		}
 		if (rm->cur.next_pattern >= rm->song_length) {
 			if (rm->repeat)
 				rm->cur.next_pattern = 0;
@@ -648,10 +661,51 @@ static void _parse_pattern_data(struct RickmodState *rm, uint8_t *data) {
 }
 
 
+void rm_reset(struct RickmodState *rm) {
+	rm->cur.bpm = 125;
+	rm->cur.speed = 6;
+	rm->cur.samples_this_tick = 0;
+	rm->cur.tick = 0;
+	rm->cur.set_on_tick = 0;
+	rm->cur.next_row = 0;
+	rm->cur.next_pattern = 0;
+	rm->cur.row = rm->cur.pattern = 0;
+	rm->end = 0;
+	_set_bpm(rm);
+	// TODO: Set pattern
+
+	rm_clear(rm);
+}
+
+
+void rm_clear(struct RickmodState *rm) {
+	int i;
+
+	rm->cur.speed = 6;
+	rm->cur.tick = 0;
+	rm->cur.samples_this_tick = 0;
+
+	for (i = 0; i < 4; i++) {
+		rm->channel[i].rm = rm, rm->channel[i].channel = i, rm->channel[i].sample = rm->channel[i].trigger = rm->channel[i].play_sample = 0;
+		memset(&rm->channel[i].rce, 0, sizeof(rm->channel[i].rce));
+		rm->channel[i].sample_pos = 0;
+		rm->mix[i] = ma_init(rm->samplerate);
+		ma_set_callback(&rm->mix[i], _pull_samples, &rm->channel[i]);
+		ma_set_volume(&rm->mix[i], 0);
+		ma_set_samplerate(&rm->mix[i], 0);
+		_set_row_channel(rm, i);
+	}
+
+	#ifdef TRACKER
+	rm->repeat_pattern = 0;
+	#endif
+
+}
+
+
 struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	struct RickmodState *rm;
-	//uint8_t patterns;
-	int max_patterns, i;
+	int max_patterns;
 
 	rm = malloc(sizeof(*rm));
 	rm->data = mod;
@@ -685,27 +739,9 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 
 	}
 
-	rm->cur.bpm = 125;
-	rm->cur.speed = 6;
-	rm->cur.samples_this_tick = 0;
-	rm->cur.tick = 0;
-	rm->cur.set_on_tick = 0;
-	rm->cur.next_row = 0;
-	rm->cur.next_pattern = 0;
-	rm->cur.row = rm->cur.pattern = 0;
-	_set_bpm(rm);
-	// TODO: Set pattern
 	
-	for (i = 0; i < 4; i++) {
-		rm->channel[i].rm = rm, rm->channel[i].channel = i, rm->channel[i].sample = rm->channel[i].trigger = rm->channel[i].play_sample = 0;
-		memset(&rm->channel[i].rce, 0, sizeof(rm->channel[i].rce));
-		rm->channel[i].sample_pos = 0;
-		rm->mix[i] = ma_init(sample_rate);
-		ma_set_callback(&rm->mix[i], _pull_samples, &rm->channel[i]);
-		ma_set_volume(&rm->mix[i], 0);
-		ma_set_samplerate(&rm->mix[i], 0);
-		_set_row_channel(rm, i);
-	}
+	rm_reset(rm);
+	rm_clear(rm);
 
 	memcpy(rm->name, mod, 20);
 	rm->name[20] = 0;
@@ -745,8 +781,8 @@ void rm_mix_s16(struct RickmodState *rm, int16_t *buff, int samples) {
 
 	_mix(rm, sample, samples);
 	for (i = 0; i < samples; i++) {
-		buff[i<<1] = sample[i] >> 1;
-		buff[(i<<1) + 1] = sample[i+samples] >> 1;
+		buff[i<<1] = (((sample[i] * 70) + (sample[i + samples] * 30))/100) >> 1;
+		buff[(i<<1) + 1] = (((sample[i+samples] * 70) + (sample[i] * 30))/100) >> 1;
 	}
 }
 
