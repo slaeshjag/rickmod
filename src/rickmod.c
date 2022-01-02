@@ -265,7 +265,7 @@ static void _do_row(struct RickmodState *rm, int channel) {
 	} else if ((rce.effect & 0xFF0) == 0xE60) {
 		if (rce.effect & 0xF) {
 			if (!rce.loop_count)
-				rce.loop_count = rce.effect & 0xF;
+				rce.loop_count = (rce.effect & 0xF) + 1;
 			rce.loop_count--;
 			if (rce.loop_count) {
 				rm->cur.next_row = rce.loop_row;
