@@ -433,7 +433,7 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 	effect = rm->pattern[rm->pattern_lookup[rm->cur.pattern]].row[rm->cur.row].channel[channel].effect;
 	rce.effect = effect;
 	
-	if (!note) {
+	if (!note || note == 0xFFF) {
 		rce.reset_note = 0;
 		note = rce.note;
 		rce.row_note = 0;
@@ -460,9 +460,12 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 		}*/
 		finetune = rce.finetune;
 	} else {
-		rce.reset_note = 1;
-		rce.volume = rm->sample[sample - 1].volume;
-		finetune = rm->sample[sample - 1].finetune;
+		// NOTE: Note is not supposed to be reset on sample number... For some reason
+		//rce.reset_note = 1;
+		if (rm->pattern[rm->pattern_lookup[rm->cur.pattern]].row[rm->cur.row].channel[channel].note) {
+			rce.volume = rm->sample[sample - 1].volume;
+			finetune = rm->sample[sample - 1].finetune;
+		}
 	} 
 	
 	if (!sample && rce.reset_note) {
