@@ -461,6 +461,8 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 		finetune = rce.finetune;
 	} else {
 		// NOTE: Note is not supposed to be reset on sample number... For some reason
+		if (sample != rce.sample && rce.sample)
+			rce.reset_note = 1;
 		//rce.reset_note = 1;
 		rce.volume = rm->sample[sample - 1].volume;
 		finetune = rm->sample[sample - 1].finetune;
