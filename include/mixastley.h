@@ -20,6 +20,10 @@ struct MAState {
 	int32_t			volume;
 	int			next_sample;
 
+	#ifdef TRACKER
+	int			mute;
+	#endif
+
 	void			(*get_next_sample)(void *ptr, int8_t *data);
 	void			*ptr;
 

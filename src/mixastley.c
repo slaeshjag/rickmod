@@ -74,6 +74,11 @@ void ma_add(struct MAState *rs, int32_t *sample, int samples) {
 
 	if (!rs->get_next_sample)
 		return;
+	#ifdef TRACKER
+	if (rs->mute)
+		return;
+	#endif
+
 	if (!rs->fraction_per_sample) {
 		rs->cur_sample = rs->last_sample = 0;
 		//fprintf(stderr, "No sample rate set\n");
@@ -114,6 +119,7 @@ struct MAState ma_init(int target_sample_rate) {
 	rs.cur_sample = 0;
 	rs.next_sample = (1 << MA_SAMPLE_BUFFER_LEN);
 	rs.sample_pos = 0x10000;
+	rs.mute = 0;
 	
 	return rs;
 }
