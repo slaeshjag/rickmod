@@ -74,10 +74,6 @@ void ma_add(struct MAState *rs, int32_t *sample, int samples) {
 
 	if (!rs->get_next_sample)
 		return;
-	#ifdef TRACKER
-	if (rs->mute)
-		return;
-	#endif
 
 	if (!rs->fraction_per_sample) {
 		rs->cur_sample = rs->last_sample = 0;
@@ -92,7 +88,10 @@ void ma_add(struct MAState *rs, int32_t *sample, int samples) {
 		tmp >>= 20;
 		tmp *= rs->sample_pos;
 		tmp >>= 11;
-		sample[i] += ((((((rs->last_sample >> 15)) + tmp)) * rs->volume) >> 6);
+		#ifdef TRACKER
+		if (!rs->mute)
+		#endif
+			sample[i] += ((((((rs->last_sample >> 15)) + tmp)) * rs->volume) >> 6);
 		//sample[i] += (((rs->last_sample >> 16) * rs->volume) >> 6);
 		rs->sample_pos += fraction_per_sample;
 		if (rs->sample_pos >= 0x10000) {
