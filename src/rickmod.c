@@ -484,7 +484,7 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 
 
 static void _handle_tick(struct RickmodState *rm) {
-	if (rm->cur.tick == rm->cur.speed + rm->cur.set_on_tick) {
+	if (rm->cur.tick >= rm->cur.speed + rm->cur.set_on_tick) {
 		if (rm->cur.next_pattern < rm->cur.pattern && !rm->repeat)
 			return (void) (rm->end = 1);
 		rm->cur.row = rm->cur.next_row, rm->cur.pattern = rm->cur.next_pattern;
@@ -534,6 +534,8 @@ static void _mix(struct RickmodState *rm, int32_t *buffer, int samples) {
 	/* TODO: This is where all timing will be handled regarding row/pattern/effect playback */
 	for (i = 0; i < samples;) {
 		len = rm->cur.samples_per_tick - rm->cur.samples_this_tick;
+		if (len <= 0)
+			goto tick_done;
 		if (i + len > samples)
 			len = samples - i;
 		ma_add(&rm->mix[0], buffer + i, len);
@@ -544,6 +546,7 @@ static void _mix(struct RickmodState *rm, int32_t *buffer, int samples) {
 		i += len;
 		if (rm->cur.samples_this_tick < rm->cur.samples_per_tick)
 			return; // Our work here is done
+	tick_done:
 		/* More work to do */
 		rm->cur.tick++;
 		rm->cur.samples_this_tick = 0;
@@ -984,6 +987,10 @@ int rm_translate_note(int note) {
 }
 
 
+void rm_bpm_set(struct RickmodState *rm, int bpm) {
+	rm->cur.bpm = bpm;
+	_set_bpm(rm);
+}
 #endif
 
 
