@@ -485,8 +485,15 @@ static void _set_row_channel(struct RickmodState *rm, int channel) {
 
 static void _handle_tick(struct RickmodState *rm) {
 	if (rm->cur.tick >= rm->cur.speed + rm->cur.set_on_tick) {
-		if (rm->cur.next_pattern < rm->cur.pattern && !rm->repeat)
-			return (void) (rm->end = 1);
+		if (rm->cur.next_pattern < rm->cur.pattern) {
+			if (!rm->repeat)
+				return (void) (rm->end = 1);
+			#ifdef TRACKER
+			else if (rm->repeat_callback)
+				rm->repeat_callback(rm->repeat_user_data);
+			#endif
+		}
+
 		rm->cur.row = rm->cur.next_row, rm->cur.pattern = rm->cur.next_pattern;
 		rm->cur.tick = 0;
 		rm->cur.set_on_tick = 0;
@@ -502,9 +509,9 @@ static void _handle_tick(struct RickmodState *rm) {
 		#endif
 		}
 		if (rm->cur.next_pattern >= rm->song_length) {
-			if (rm->repeat)
+			if (rm->repeat) {
 				rm->cur.next_pattern = 0;
-			else {
+			} else {
 				rm->end = 1;
 				return;
 			}
@@ -534,8 +541,10 @@ static void _mix(struct RickmodState *rm, int32_t *buffer, int samples) {
 	/* TODO: This is where all timing will be handled regarding row/pattern/effect playback */
 	for (i = 0; i < samples;) {
 		len = rm->cur.samples_per_tick - rm->cur.samples_this_tick;
+		#ifdef TRACKER
 		if (len <= 0)
 			goto tick_done;
+		#endif
 		if (i + len > samples)
 			len = samples - i;
 		ma_add(&rm->mix[0], buffer + i, len);
@@ -546,7 +555,9 @@ static void _mix(struct RickmodState *rm, int32_t *buffer, int samples) {
 		i += len;
 		if (rm->cur.samples_this_tick < rm->cur.samples_per_tick)
 			return; // Our work here is done
+		#ifdef TRACKER
 	tick_done:
+		#endif
 		/* More work to do */
 		rm->cur.tick++;
 		rm->cur.samples_this_tick = 0;
@@ -730,6 +741,9 @@ struct RickmodState *rm_init(int sample_rate, uint8_t *mod, int mod_len) {
 	rm->samplerate = sample_rate;
 	rm->repeat = rm->end = 0;
 	rm->row_callback = NULL;
+	#ifdef TRACKER
+	rm->repeat_callback = NULL;
+	#endif
 
 	if (mod[1080] == 'M' && mod[1082] == 'K') {
 		fprintf(stderr, "Found 31 sample mod\n");
@@ -872,7 +886,10 @@ struct RickmodState *rm_new(int sample_rate) {
 	rm->repeat = 0;
 	rm->end = 0;
 	rm->row_callback = NULL;
-	
+	#ifdef TRACKER
+	rm->repeat_callback = NULL;
+	#endif
+
 	rm->cur.bpm = 125;
 	rm->cur.speed = 6;
 	rm->cur.samples_this_tick = 0;
@@ -991,6 +1008,14 @@ void rm_bpm_set(struct RickmodState *rm, int bpm) {
 	rm->cur.bpm = bpm;
 	_set_bpm(rm);
 }
+
+
+void rm_repeat_callback_set(struct RickmodState *rm, void (*row_callback)(void *data), void *user_data) {
+	rm->repeat_user_data = user_data;
+	rm->repeat_callback = row_callback;
+}
+
+
 #endif
 
 

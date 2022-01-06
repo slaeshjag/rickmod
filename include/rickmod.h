@@ -98,6 +98,8 @@ struct RickmodState {
 	void			(*row_callback)(void *data);
 	void			*user_data;
 	#ifdef TRACKER
+	void			(*repeat_callback)(void *data);
+	void			*repeat_user_data;
 	int			repeat_pattern;
 	#endif
 
@@ -136,5 +138,7 @@ int rm_save(struct RickmodState *rm, const char *path);
 int rm_lookup_note(int note); // 0 = C-3, 35 = B-5, -1 = invalid
 void rm_samplerate_set(struct MAState *rs, int note, int finetune);
 int rm_translate_note(int note); // returns the period number for a note, 0 = C-3
+void rm_bpm_set(struct RickmodState *rm, int bpm);
+void rm_repeat_callback_set(struct RickmodState *rm, void (*repeat_callback)(void *data), void *user_data);
 
 #endif
