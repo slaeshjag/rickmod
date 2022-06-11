@@ -568,6 +568,44 @@ static void _mix(struct RickmodState *rm, int32_t *buffer, int samples) {
 }
 
 
+/* Stereo, non-interleaved */
+static void _mix_fast(struct RickmodState *rm, int32_t *buffer, int samples) {
+	int i, len;
+
+	memset(buffer, 0, 4*2*samples);
+	if (rm->end)
+		return;
+	
+	/* TODO: This is where all timing will be handled regarding row/pattern/effect playback */
+	for (i = 0; i < samples;) {
+		len = rm->cur.samples_per_tick - rm->cur.samples_this_tick;
+		#ifdef TRACKER
+		if (len <= 0)
+			goto tick_done;
+		#endif
+		if (i + len > samples)
+			len = samples - i;
+		ma_add_fast(&rm->mix[0], buffer + i, len);
+		ma_add_fast(&rm->mix[3], buffer + i, len);
+		ma_add_fast(&rm->mix[1], buffer + samples + i, len);
+		ma_add_fast(&rm->mix[2], buffer + samples + i, len);
+		rm->cur.samples_this_tick += len;
+		i += len;
+		if (rm->cur.samples_this_tick < rm->cur.samples_per_tick)
+			return; // Our work here is done
+		#ifdef TRACKER
+	tick_done:
+		#endif
+		/* More work to do */
+		rm->cur.tick++;
+		rm->cur.samples_this_tick = 0;
+		_handle_tick(rm);
+		if (rm->end)
+			break;
+	}
+}
+
+
 static void _pull_samples(void *ptr, int8_t *buff) {
 	struct RickmodChannelState *rcs = ptr;
 	struct RickmodSample *s;
@@ -613,7 +651,7 @@ loop:
 
 
 static void _parse_sample_info(struct RickmodState *rm, uint8_t *mod, uint16_t wavepos, int samples) {
-	int i;
+	int i, j;
 	uint8_t *sample_data;
 	uint32_t next_wave = wavepos;
 
@@ -626,7 +664,7 @@ static void _parse_sample_info(struct RickmodState *rm, uint8_t *mod, uint16_t w
 		sample_data = mod + 20 + i*30;
 		memcpy(rm->sample[i].name, sample_data, 22);
 		#ifndef TRACKER
-		for (int j = 0; j < 22; j++)
+		for (j = 0; j < 22; j++)
 			if (rm->sample[i].name[j] == 0)
 				rm->sample[i].name[j] = ' ';
 		#endif
@@ -807,6 +845,19 @@ static void _print_pattern(struct RickmodState *rm, int pattern) {
 #endif
 
 
+void rm_mix_s16_fast(struct RickmodState *rm, int16_t *buff, int samples) {
+	int32_t sample[samples * 2];
+	int i;
+
+	_mix_fast(rm, sample, samples);
+	for (i = 0; i < samples; i++) {
+		buff[i<<1] = ((sample[i]));
+		buff[(i<<1) + 1] = ((sample[i+samples]));
+	}
+
+}
+
+
 void rm_mix_s16(struct RickmodState *rm, int16_t *buff, int samples) {
 	int32_t sample[samples * 2];
 	int i;
@@ -822,7 +873,7 @@ void rm_mix_u8(struct RickmodState *rm, uint8_t *buff, int samples) {
 	int32_t sample[samples * 2];
 	int i;
 
-	_mix(rm, sample, samples);
+	_mix_fast(rm, sample, samples);
 	for (i = 0; i < samples; i++) {
 		buff[i<<1] = ((sample[i] >> 9) & 0xFF) + 128;
 		buff[(i<<1) + 1] = ((sample[i+samples] >> 9) & 0xFF) + 128;
@@ -1043,7 +1094,7 @@ int main(int argc, char **argv) {
 		fp = fopen(argv[2], "w");
 	//rm_repeat_set(rm, 1);
 	while (!rm_end_reached(rm)) {
-		rm_mix_s16(rm, buff, 44100);
+		rm_mix_s16_fast(rm, buff, 44100);
 		fwrite(buff, 44100, 4, fp);
 	}
 	

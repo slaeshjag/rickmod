@@ -44,6 +44,15 @@ static void resample_refill(struct MAState *rs) {
 }
 
 
+static void resample_refill_fast(struct MAState *rs) {
+	int i;
+	int8_t buff[1 << MA_SAMPLE_BUFFER_LEN];
+	rs->get_next_sample(rs->ptr, buff);
+	for (i = 0; i < (1 << MA_SAMPLE_BUFFER_LEN); i++)
+		rs->buffer[i] = buff[i] << 7;
+}
+
+
 #if 0
 static void resample_filter(struct MAState *rs, int16_t *sample, int samples) {
 	int i, j;
@@ -109,6 +118,39 @@ void ma_add(struct MAState *rs, int32_t *sample, int samples) {
 }
 
 
+void ma_add_fast(struct MAState *rs, int32_t *sample, int samples) {
+	int i;
+	int32_t tmp, fraction_per_sample;
+
+	if (!rs->get_next_sample)
+		return;
+
+	if (!rs->fraction_per_sample) {
+		rs->cur_sample = rs->last_sample = 0;
+		//fprintf(stderr, "No sample rate set\n");
+		return;
+	}
+
+	fraction_per_sample = rs->fraction_per_sample;
+
+	for (i = 0; i < samples; i++) {
+		sample[i] += (((rs->last_sample) * rs->volume) >> 6);
+		rs->sample_pos += fraction_per_sample;
+		if (rs->sample_pos >= 0x10000) {
+			rs->next_sample += rs->sample_pos >> 16;
+			rs->sample_pos &= 0xFFFF;
+			if (rs->next_sample >= (1 << MA_SAMPLE_BUFFER_LEN)) {
+				rs->next_sample &= (0xFFFF >> (16 - MA_SAMPLE_BUFFER_LEN));
+				resample_refill_fast(rs);
+			}
+			rs->last_sample = rs->cur_sample;
+			rs->cur_sample = rs->buffer[rs->next_sample];
+			//printf("cur sample: %i %i\n", rs->cur_sample, rs->next_sample);
+		}
+	}
+}
+
+
 struct MAState ma_init(int target_sample_rate) {
 	struct MAState rs;
 
@@ -118,7 +160,9 @@ struct MAState ma_init(int target_sample_rate) {
 	rs.cur_sample = 0;
 	rs.next_sample = (1 << MA_SAMPLE_BUFFER_LEN);
 	rs.sample_pos = 0x10000;
+	#ifdef TRACKER
 	rs.mute = 0;
+	#endif
 	
 	return rs;
 }

@@ -43,6 +43,7 @@ struct MAMix {
 };
 
 void ma_add(struct MAState *rs, int32_t *sample, int samples);
+void ma_add_fast(struct MAState *rs, int32_t *sample, int samples);
 struct MAMix ma_mix_create(int sample_rate);
 void ma_mix8(struct MAMix *mix, uint8_t *buff, int samples);
 void ma_set_callback(struct MAState *rs, void (*next_sample)(void *ptr, int8_t *buff), void *ptr);
